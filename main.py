@@ -1,5 +1,4 @@
 import os
-import uvicorn
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -17,5 +16,5 @@ def get_queue_status(appointment_id: int):
     return queue_data.get(appointment_id, {"error": "Appointment not found"})
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Get Railway's dynamic port
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
