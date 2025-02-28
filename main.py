@@ -1,16 +1,8 @@
+import os
+import uvicorn
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-
-# Allow frontend to access the backend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Replace with your frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.get("/")
 def read_root():
@@ -23,3 +15,7 @@ def get_queue_status(appointment_id: int):
         2: {"position": 1, "estimated_wait_time": "5 min"},
     }
     return queue_data.get(appointment_id, {"error": "Appointment not found"})
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))  # Get Railway's dynamic port
+    uvicorn.run(app, host="0.0.0.0", port=port)
