@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI
+import uvicorn
 
 app = FastAPI()
 
@@ -16,5 +17,5 @@ def get_queue_status(appointment_id: int):
     return queue_data.get(appointment_id, {"error": "Appointment not found"})
 
 if __name__ == "__main__":
-    import uvicorn
+    
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
