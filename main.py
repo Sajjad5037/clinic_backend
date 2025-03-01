@@ -1,58 +1,77 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+import uvicorn
 
 app = FastAPI()
 
 # Allow Firebase frontend and local development
 origins = [
     "https://clinic-management-system-27d11.web.app",
-    "http://localhost:3000",  # For local testing
+    "http://localhost:3000",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allowed origins
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Hypothetical database of doctors
-doctors = [
-    {"id": 1, "username": "drsmith", "password": "securePass123", "name": "Dr. Smith", "specialization": "Cardiology"},
-    {"id": 2, "username": "drjones", "password": "pass456", "name": "Dr. Jones", "specialization": "Neurology"},
-]
+# Database setup
+DATABASE_URL = "sqlite:///./clinic.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Define Doctor model
+class Doctor(Base):
+    __tablename__ = "doctors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password = Column(String)
+    name = Column(String)
+    specialization = Column(String)
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 # Pydantic model for login requests
 class LoginRequest(BaseModel):
     username: str
     password: str
 
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
 
-
 @app.post("/login")
-async def login(request: LoginRequest):
-    username = request.username
-    password = request.password
-
-    # Find doctor in the database
-    doctor = next((doc for doc in doctors if doc["username"] == username and doc["password"] == password), None)
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.username == request.username, Doctor.password == request.password).first()
 
     if doctor:
         return JSONResponse(content={
-            "id": doctor["id"],
-            "name": doctor["name"],
-            "specialization": doctor["specialization"]
+            "id": doctor.id,
+            "name": doctor.name,
+            "specialization": doctor.specialization
         }, status_code=200)
     
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-
 if __name__ == "__main__":
-    import uvicorn
+    
     uvicorn.run(app, host="0.0.0.0", port=8000)
