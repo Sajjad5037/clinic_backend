@@ -17,9 +17,34 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+doctors = [
+    {"id": 1, "username": "drsmith", "password": "securePass123", "name": "Dr. Smith", "specialization": "Cardiology"},
+    {"id": 2, "username": "drjones", "password": "pass456", "name": "Dr. Jones", "specialization": "Neurology"},
+]
+
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
+    
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()  # Get JSON data from request
+    username = data.get("username")
+    password = data.get("password")
+
+    # Find doctor in the database
+    doctor = next((doc for doc in doctors if doc["username"] == username and doc["password"] == password), None)
+
+    if doctor:
+        return jsonify({
+            "id": doctor["id"],
+            "name": doctor["name"],
+            "specialization": doctor["specialization"]
+        }), 200
+    else:
+        return jsonify({"error": "Invalid credentials"}), 401
+
+
 
 @app.get("/queue/{appointment_id}")
 def get_queue_status(appointment_id: int):
