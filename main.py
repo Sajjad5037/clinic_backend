@@ -1,8 +1,21 @@
-import os
 from fastapi import FastAPI
-import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Allow Firebase frontend to access the API
+origins = [
+    "https://clinic-management-system-27d11.web.app",
+    "http://localhost:3000",  # For local testing
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 @app.get("/")
 def read_root():
@@ -17,5 +30,5 @@ def get_queue_status(appointment_id: int):
     return queue_data.get(appointment_id, {"error": "Appointment not found"})
 
 if __name__ == "__main__":
-    
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
