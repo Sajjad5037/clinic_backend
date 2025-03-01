@@ -88,8 +88,10 @@ def get_db():
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
+"""
 @app.post("/add_doctor")
-"""def add_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
+
+    def add_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
     existing_doctor = db.query(Doctor).filter(Doctor.username == doctor.username).first()
     if existing_doctor:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -104,8 +106,7 @@ def read_root():
     db.add(new_doctor)
     db.commit()
     return {"message": "Doctor added successfully"}
-    """
-
+"""
 @app.post("/login")
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.username == request.username).first()
