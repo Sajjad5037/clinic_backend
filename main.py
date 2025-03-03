@@ -12,6 +12,8 @@ from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconn
 import json
 import time
 import uuid  # For generating unique tokens
+import os
+
 app = FastAPI()
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -403,4 +405,7 @@ def delete_patient(id: int):
     return {"message": "Patient deleted successfully"}
     
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    if __name__ == "__main__":
+    
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
