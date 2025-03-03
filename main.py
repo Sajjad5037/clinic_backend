@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
@@ -8,11 +8,77 @@ from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
 from typing import List
-
-
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+import json
+import time
+import uuid  # For generating unique tokens
 app = FastAPI()
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+# WebSocket connection manager to handle multiple clients
+class ConnectionManager:
+    def __init__(self):
+        # List to store all active WebSocket connections
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        # Accept the WebSocket connection and add it to the list
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        # Remove a WebSocket from the list when it disconnects
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        # Send a message to all connected clients
+        for connection in self.active_connections:
+            await connection.send_text(json.dumps(message))
+
+# Instantiate the manager globally
+manager = ConnectionManager()
+# Server-side state for real-time features
+class DashboardState:
+    def __init__(self):
+        self.patients = []  # List of patient names (simplified for this example)
+        self.current_patient = None  # Patient being inspected
+        self.inspection_times = []  # List of inspection durations in seconds
+        self.start_time = None  # Start time of current inspection
+        # Generate a unique public token for this dashboard
+        self.public_token = str(uuid.uuid4())
+
+    def add_patient(self, patient_name: str):
+        self.patients.append(patient_name)
+        if not self.current_patient:
+            self.current_patient = patient_name
+            self.start_time = time.time()
+
+    def mark_as_done(self):
+        if not self.current_patient:
+            return
+        # Calculate duration and store it
+        duration = time.time() - self.start_time
+        self.inspection_times.append(duration)
+        # Shift to next patient
+        self.patients.pop(0)
+        self.current_patient = self.patients[0] if self.patients else None
+        self.start_time = time.time() if self.current_patient else None
+
+    def get_average_time(self):
+        # Calculate average inspection time, default to 60s if none recorded
+        return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 60
+    def get_public_state(self):
+        # Return a read-only version of the state for public access
+        return {
+            "patients": self.patients,
+            "currentPatient": self.current_patient,
+            "averageInspectionTime": self.get_average_time()
+        }
+
+# Global state instance
+state = DashboardState()
+public_manager = ConnectionManager() # Add a separate manager for public connections
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -118,6 +184,83 @@ def get_db():
     finally:
         db.close()
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    # Connect the client
+    await manager.connect(websocket)
+    try:
+        # Send initial state to the new client
+        await websocket.send_text(json.dumps({
+            "type": "update_state",
+            "data": {
+                "patients": state.patients,
+                "currentPatient": state.current_patient,
+                "averageInspectionTime": state.get_average_time()
+            }
+        }))
+        while True:
+            # Listen for messages from the client
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle different message types
+            if message["type"] == "add_patient":
+                state.add_patient(message["patient"])
+                await manager.broadcast({
+                    "type": "update_state",
+                    "data": {
+                        "patients": state.patients,
+                        "currentPatient": state.current_patient,
+                        "averageInspectionTime": state.get_average_time()
+                    }
+                })
+            elif message["type"] == "mark_done":
+                state.mark_as_done()
+                await manager.broadcast({
+                    "type": "update_state",
+                    "data": {
+                        "patients": state.patients,
+                        "currentPatient": state.current_patient,
+                        "averageInspectionTime": state.get_average_time()
+                    }
+                })
+    except WebSocketDisconnect:
+        # Handle client disconnection
+        manager.disconnect(websocket)
+async def broadcast_state():
+    state_data = {
+        "type": "update_state",
+        "data": state.get_public_state()
+    }
+    await manager.broadcast(state_data)  # To authenticated clients
+    await public_manager.broadcast(state_data)  # To public clients
+
+# New public WebSocket endpoint for patients
+@app.websocket("/ws/public/{token}")
+async def public_websocket_endpoint(websocket: WebSocket, token: str):
+    # Verify the token matches the dashboard's public token
+    if token != state.public_token:
+        await websocket.close(code=1008)  # Policy violation
+        return
+    
+    # Connect the public client
+    await public_manager.connect(websocket)
+    try:
+        # Send initial state to the public client
+        await websocket.send_text(json.dumps({
+            "type": "update_state",
+            "data": state.get_public_state()
+        }))
+        # Keep the connection open for updates (no actions allowed)
+        while True:
+            await websocket.receive_text()  # Keep alive, but ignore messages
+    except WebSocketDisconnect:
+        public_manager.disconnect(websocket)
+
+# HTTP endpoint to get the public token (for the doctor to share)
+@app.get("/dashboard/public-token")
+def get_public_token():
+    return {"publicToken": state.public_token}
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
