@@ -7,6 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
+from typing import List
 
 app = FastAPI()
 Base = declarative_base()
