@@ -9,6 +9,7 @@ import uvicorn
 from passlib.context import CryptContext
 from typing import List
 
+
 app = FastAPI()
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
