@@ -11,6 +11,19 @@ from passlib.context import CryptContext
 app = FastAPI()
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+class Patient(Base):
+    __tablename__ = "patients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+
+class PatientCreate(BaseModel):
+    name: str
+
+class PatientResponse(PatientCreate):
+    id: int
+
 class Doctor(Base):
     __tablename__ = "doctors"
 
@@ -210,6 +223,39 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
+
+# GET /patients - Fetch all patients
+@app.get("/patients", response_model=List[PatientResponse])
+def get_patients():
+    db = SessionLocal()
+    patients = db.query(Patient).all()
+    db.close()
+    return patients
+
+# POST /patients - Add a new patient
+@app.post("/patients", response_model=PatientResponse)
+def add_patient(patient: PatientCreate):
+    db = SessionLocal()
+    new_patient = Patient(name=patient.name)
+    db.add(new_patient)
+    db.commit()
+    db.refresh(new_patient)
+    db.close()
+    return new_patient
+
+# DELETE /patients/{id} - Remove a patient
+@app.delete("/patients/{id}")
+def delete_patient(id: int):
+    db = SessionLocal()
+    patient = db.query(Patient).filter(Patient.id == id).first()
+    if not patient:
+        db.close()
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    db.delete(patient)
+    db.commit()
+    db.close()
+    return {"message": "Patient deleted successfully"}
     
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
