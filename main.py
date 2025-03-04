@@ -19,8 +19,6 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # WebSocket connection manager to handle multiple clients
-class LogoutRequest(BaseModel):
-    resetAverageInspectionTime: bool = False
 
 class ConnectionManager:
     def __init__(self):
@@ -288,25 +286,6 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         }, status_code=200)
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.post("/logout")
-async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
-    try:
-        # If the client requested to reset the average inspection time, update the session.
-        if logout_request.resetAverageInspectionTime:
-            req.session["averageInspectionTime"] = 60
-
-        # Clear the session to log the user out.
-        req.session.clear()
-
-        return JSONResponse(
-            content={"message": "Logged out and session reset."},
-            status_code=200
-        )
-    except Exception as e:
-        # Return an error response so that CORS middleware can attach headers.
-        return JSONResponse(
-            content={"error": f"Logout failed: {str(e)}"},
-            status_code=500
         )
 
 @app.get("/get_next_doctor_id")
