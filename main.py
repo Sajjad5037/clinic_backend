@@ -279,8 +279,9 @@ def read_root():
 @app.post("/login")
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.username == request.username).first()
-
     if doctor and pwd_context.verify(request.password, doctor.password):
+        # Start a session by storing data
+        request.session["doctor_id"] = doctor.id
         return JSONResponse(content={
             "id": doctor.id,
             "name": doctor.name,
