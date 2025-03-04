@@ -290,14 +290,21 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
+    # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
     if logout_request.resetAverageInspectionTime:
         req.session["averageInspectionTime"] = 60
+
+    # Clear the session
     req.session.clear()
-    return JSONResponse(
+
+    # Create a response and explicitly delete the session cookie.
+    response = JSONResponse(
         content={"message": "Logged out and session reset."},
         status_code=200
     )
-
+    # Delete the session cookie (the default cookie name is "session")
+    response.delete_cookie(key="session")
+    return response
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
     max_id = db.query(func.max(Doctor.id)).scalar()
