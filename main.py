@@ -91,6 +91,9 @@ class Patient(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
 
+class ResetRequest(BaseModel):
+    reset: bool = False
+
 class PatientCreate(BaseModel):
     name: str
 
@@ -135,7 +138,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Allow specific origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
 def create_admin(db: Session):
@@ -299,6 +302,13 @@ async def logout(logout_request: LogoutRequest, req: Request):
         status_code=200
     )
 
+@app.post("/reset")
+async def reset_endpoint(reset_request: ResetRequest, req: Request):
+    # If the reset flag is True, update the session's averageInspectionTime.
+    if reset_request.reset:
+        req.session["averageInspectionTime"] = 60
+        # You can also reset any other session state as needed.
+    return JSONResponse(content={"message": "Session state has been reset."}, status_code=200)
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
