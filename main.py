@@ -277,18 +277,24 @@ def read_root():
 
     
 @app.post("/login")
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    doctor = db.query(Doctor).filter(Doctor.username == request.username).first()
-    if doctor and pwd_context.verify(request.password, doctor.password):
-        # Start a session by storing data
-        request.session["doctor_id"] = doctor.id
-        return JSONResponse(content={
-            "id": doctor.id,
-            "name": doctor.name,
-            "specialization": doctor.specialization
-        }, status_code=200)
+async def login(
+    req: Request, 
+    login_request: LoginRequest,  # This is your Pydantic model for credentials.
+    db: Session = Depends(get_db)
+):
+    doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
+    if doctor and pwd_context.verify(login_request.password, doctor.password):
+        # Now 'req' is the FastAPI Request object with the session attribute.
+        req.session["doctor_id"] = doctor.id
+        return JSONResponse(
+            content={
+                "id": doctor.id,
+                "name": doctor.name,
+                "specialization": doctor.specialization
+            },
+            status_code=200
+        )
     raise HTTPException(status_code=401, detail="Invalid credentials")
-
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
@@ -433,5 +439,5 @@ def delete_patient(id: int):
     return {"message": "Patient deleted successfully"}
     
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 3000))
     uvicorn.run(app, host="0.0.0.0", port=port)
