@@ -13,6 +13,10 @@ import json
 import time
 import uuid  # For generating unique tokens
 import os
+from starlette.middleware.sessions import SessionMiddleware
+
+secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
+
 
 app = FastAPI()
 Base = declarative_base()
@@ -136,6 +140,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
+
+app.add_middleware(SessionMiddleware, secret_key=secret_key)
+
 def create_admin(db: Session):
     admin_username = "sajjad"
     admin = db.query(Doctor).filter(Doctor.username == admin_username).first()
