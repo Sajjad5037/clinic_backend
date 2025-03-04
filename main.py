@@ -289,26 +289,25 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.post("/logout")
-async def logout(logout_request: LogoutRequest, req: Request):
-    # If the client requested to reset the average inspection time, do so in the session.
-    if logout_request.resetAverageInspectionTime:
-        req.session["averageInspectionTime"] = 60
+async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
+    try:
+        # If the client requested to reset the average inspection time, update the session.
+        if logout_request.resetAverageInspectionTime:
+            req.session["averageInspectionTime"] = 60
 
-    # Clear the session to log the user out.
-    req.session.clear()
+        # Clear the session to log the user out.
+        req.session.clear()
 
-    return JSONResponse(
-        content={"message": "Logged out and session reset."},
-        status_code=200
-    )
-
-@app.post("/reset")
-async def reset_endpoint(reset_request: ResetRequest, req: Request):
-    # If the reset flag is True, update the session's averageInspectionTime.
-    if reset_request.reset:
-        req.session["averageInspectionTime"] = 60
-        # You can also reset any other session state as needed.
-    return JSONResponse(content={"message": "Session state has been reset."}, status_code=200)
+        return JSONResponse(
+            content={"message": "Logged out and session reset."},
+            status_code=200
+        )
+    except Exception as e:
+        # Return an error response so that CORS middleware can attach headers.
+        return JSONResponse(
+            content={"error": f"Logout failed: {str(e)}"},
+            status_code=500
+        )
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
