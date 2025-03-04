@@ -19,7 +19,6 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # WebSocket connection manager to handle multiple clients
-
 class ConnectionManager:
     def __init__(self):
         # List to store all active WebSocket connections
@@ -38,7 +37,8 @@ class ConnectionManager:
         # Send a message to all connected clients
         for connection in self.active_connections:
             await connection.send_text(json.dumps(message))
-
+class LogoutRequest(BaseModel):
+    resetAverageInspectionTime: bool = False
 # Instantiate the manager globally
 manager = ConnectionManager()
 # Server-side state for real-time features
@@ -89,9 +89,6 @@ class Patient(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
 
-class ResetRequest(BaseModel):
-    reset: bool = False
-
 class PatientCreate(BaseModel):
     name: str
 
@@ -136,7 +133,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Allow specific origins
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Allow all HTTP methods
+    allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
 def create_admin(db: Session):
@@ -263,8 +260,6 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     except WebSocketDisconnect:
         public_manager.disconnect(websocket)
 
-
-
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token():
@@ -286,7 +281,15 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         }, status_code=200)
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        )
+@app.post("/logout")
+async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
+    if logout_request.resetAverageInspectionTime:
+        req.session["averageInspectionTime"] = 60
+    req.session.clear()
+    return JSONResponse(
+        content={"message": "Logged out and session reset."},
+        status_code=200
+    )
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
@@ -397,6 +400,8 @@ def add_patient(patient: PatientCreate):
     db.refresh(new_patient)
     db.close()
     return new_patient
+
+
 
 # DELETE /patients/{id} - Remove a patient
 @app.delete("/patients/{id}")
