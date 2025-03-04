@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request
 import json
 import time
 import uuid  # For generating unique tokens
@@ -19,6 +19,9 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # WebSocket connection manager to handle multiple clients
+class LogoutRequest(BaseModel):
+    resetAverageInspectionTime: bool = False
+
 class ConnectionManager:
     def __init__(self):
         # List to store all active WebSocket connections
@@ -259,6 +262,8 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     except WebSocketDisconnect:
         public_manager.disconnect(websocket)
 
+
+
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token():
@@ -279,6 +284,21 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             "specialization": doctor.specialization
         }, status_code=200)
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.post("/logout")
+async def logout(logout_request: LogoutRequest, req: Request):
+    # If the client requested to reset the average inspection time, do so in the session.
+    if logout_request.resetAverageInspectionTime:
+        req.session["averageInspectionTime"] = 60
+
+    # Clear the session to log the user out.
+    req.session.clear()
+
+    return JSONResponse(
+        content={"message": "Logged out and session reset."},
+        status_code=200
+    )
+
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
