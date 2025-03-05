@@ -273,6 +273,7 @@ async def broadcast_state():
 async def public_websocket_endpoint(websocket: WebSocket, token: str):
     # Verify the token matches the dashboard's public token
     if token != state.public_token:
+        print(f"Token mismatch! Provided: {token}, Expected: {state.public_token}")
         await websocket.close(code=1008)  # Policy violation
         return
     
