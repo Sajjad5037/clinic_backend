@@ -228,14 +228,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 state.add_patient(message["patient"])
                 await asyncio.sleep(0.1)  # Small delay to ensure state updates
                 print("Patients before broadcast:", state.patients)  # Debugging step
-                await manager.broadcast({
+                await manager.broadcast(json.dumps({
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                })
+                }))
             elif message["type"] == "mark_done":
                 state.mark_as_done()
                 await manager.broadcast({
