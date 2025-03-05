@@ -257,8 +257,14 @@ async def websocket_endpoint(websocket: WebSocket):
             
             
     except WebSocketDisconnect:
-        # Handle client disconnection
-        manager.disconnect(websocket)
+       manager.disconnect(websocket)
+       print("WebSocket disconnected. Attempting to reconnect in 2 seconds...")
+
+        # Retry logic - attempt to reconnect after 2 seconds
+       await asyncio.sleep(2)  # Simulate a delay before retry
+       # Attempt to reconnect by invoking the websocket handler again
+       # You would need to reinitialize the WebSocket connection and session
+       await websocket_endpoint(websocket)
 async def broadcast_state():
     state_data = {
         "type": "update_state",
