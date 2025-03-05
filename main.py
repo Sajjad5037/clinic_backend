@@ -238,14 +238,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 }))
             elif message["type"] == "mark_done":
                 state.mark_as_done()
-                await manager.broadcast({
+                await manager.broadcast(json.dumps({
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                })
+                }))
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
                 await manager.broadcast({
@@ -254,6 +254,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.average_inspection_time
                     }
                 })
+
             
             
     except WebSocketDisconnect:
