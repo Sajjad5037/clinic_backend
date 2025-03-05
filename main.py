@@ -225,15 +225,14 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # Handle different message types
             if message["type"] == "add_patient":
-                state.add_patient(message["patient"])
+                state.add_patient(message["patient"])  # Add the new patient
                 await asyncio.sleep(0.1)  # Small delay to ensure state updates
                 print("Patients before broadcast:", state.patients)  # Debugging step
+                # Broadcast only the updated patients list
                 await manager.broadcast(json.dumps({
                     "type": "update_state",
                     "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time()
+                        "patients": state.patients  # Send only the updated patients list
                     }
                 }))
             elif message["type"] == "mark_done":
