@@ -15,7 +15,6 @@ import uuid  # For generating unique tokens
 import os
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
-import asyncio  # Add at the top
 
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
@@ -225,26 +224,25 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # Handle different message types
             if message["type"] == "add_patient":
-                state.add_patient(message["patient"])  # Add the new patient
-                await asyncio.sleep(0.1)  # Small delay to ensure state updates
-                print("Patients before broadcast:", state.patients)  # Debugging step
-                # Broadcast only the updated patients list
-                await manager.broadcast(json.dumps({
-                    "type": "update_state",
-                    "data": {
-                        "patients": state.patients  # Send only the updated patients list
-                    }
-                }))
-            elif message["type"] == "mark_done":
-                state.mark_as_done()
-                await manager.broadcast(json.dumps({
+                state.add_patient(message["patient"])
+                await manager.broadcast({
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                }))
+                })
+            elif message["type"] == "mark_done":
+                state.mark_as_done()
+                await manager.broadcast({
+                    "type": "update_state",
+                    "data": {
+                        "patients": state.patients,
+                        "currentPatient": state.current_patient,
+                        "averageInspectionTime": state.get_average_time()
+                    }
+                })
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
                 await manager.broadcast({
@@ -253,18 +251,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.average_inspection_time
                     }
                 })
-
             
             
     except WebSocketDisconnect:
-       manager.disconnect(websocket)
-       print("WebSocket disconnected. Attempting to reconnect in 2 seconds...")
-
-        # Retry logic - attempt to reconnect after 2 seconds
-       await asyncio.sleep(2)  # Simulate a delay before retry
-       # Attempt to reconnect by invoking the websocket handler again
-       # You would need to reinitialize the WebSocket connection and session
-       await websocket_endpoint(websocket)
+        # Handle client disconnection
+        manager.disconnect(websocket)
 async def broadcast_state():
     state_data = {
         "type": "update_state",
@@ -278,7 +269,6 @@ async def broadcast_state():
 async def public_websocket_endpoint(websocket: WebSocket, token: str):
     # Verify the token matches the dashboard's public token
     if token != state.public_token:
-        print(f"Token mismatch! Provided: {token}, Expected: {state.public_token}")
         await websocket.close(code=1008)  # Policy violation
         return
     
