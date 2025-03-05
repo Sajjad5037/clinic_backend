@@ -15,6 +15,7 @@ import uuid  # For generating unique tokens
 import os
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
+import asyncio  # Add at the top
 
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
@@ -225,6 +226,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # Handle different message types
             if message["type"] == "add_patient":
                 state.add_patient(message["patient"])
+                await asyncio.sleep(0.1)  # Small delay to ensure state updates
+                print("Patients before broadcast:", state.patients)  # Debugging step
                 await manager.broadcast({
                     "type": "update_state",
                     "data": {
