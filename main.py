@@ -14,6 +14,7 @@ import time
 import uuid  # For generating unique tokens
 import os
 from starlette.middleware.sessions import SessionMiddleware
+from datetime import datetime, timedelta,timezone
 
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
@@ -54,6 +55,7 @@ class DashboardState:
         self.start_time = None  # Start time of current inspection
         # Generate a unique public token for this dashboard
         self.public_token = str(uuid.uuid4())
+        self.average_inspection_time = 60
 
     def add_patient(self, patient_name: str):
         self.patients.append(patient_name)
@@ -71,6 +73,13 @@ class DashboardState:
         self.patients.pop(0)
         self.current_patient = self.patients[0] if self.patients else None
         self.start_time = time.time() if self.current_patient else None
+
+    def reset_averageInspectionTime(self):
+        """Reset the average inspection time to 60 seconds."""
+        self.average_inspection_time = 60
+        
+        self.inspection_times = []  # Optional: Clear past records if needed
+
 
     def get_average_time(self):
         # Calculate average inspection time, default to 60s if none recorded
@@ -234,6 +243,16 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.get_average_time()
                     }
                 })
+            elif message["type"] == "reset_averageInspectionTime":
+                state.reset_averageInspectionTime()
+                await manager.broadcast({
+                    "type": "reset_averageInspectionTime",
+                    "data": {                        
+                        "averageInspectionTime": state.average_inspection_time
+                    }
+                })
+            
+            
     except WebSocketDisconnect:
         # Handle client disconnection
         manager.disconnect(websocket)
@@ -278,14 +297,11 @@ def read_root():
     
 @app.post("/login")
 async def login(
-    req: Request, 
-    login_request: LoginRequest,  # This is your Pydantic model for credentials.
+    login_request: LoginRequest,
     db: Session = Depends(get_db)
 ):
     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
     if doctor and pwd_context.verify(login_request.password, doctor.password):
-        # Now 'req' is the FastAPI Request object with the session attribute.
-        req.session["doctor_id"] = doctor.id
         return JSONResponse(
             content={
                 "id": doctor.id,
@@ -295,6 +311,7 @@ async def login(
             status_code=200
         )
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
@@ -310,7 +327,14 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
         status_code=200
     )
     # Delete the session cookie (the default cookie name is "session")
-    response.delete_cookie(key="session")
+    response.delete_cookie(key="session", path="/")
+     # Alternatively, set the cookie to expire in the past.
+    response.set_cookie(
+    key="session",
+    value="",
+    expires=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%a, %d-%b-%Y %H:%M:%S GMT"),
+    path="/"
+    )
     return response
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
