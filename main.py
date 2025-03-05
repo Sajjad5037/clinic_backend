@@ -15,7 +15,7 @@ import uuid  # For generating unique tokens
 import os
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
-
+import asyncio
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
 
@@ -207,6 +207,7 @@ def get_db():
 async def websocket_endpoint(websocket: WebSocket):
     # Connect the client
     await manager.connect(websocket)
+    
     try:
         # Send initial state to the new client
         await websocket.send_text(json.dumps({
@@ -217,6 +218,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "averageInspectionTime": state.get_average_time()
             }
         }))
+        
         while True:
             # Listen for messages from the client
             data = await websocket.receive_text()
@@ -224,25 +226,26 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # Handle different message types
             if message["type"] == "add_patient":
-                state.add_patient(message["patient"])
-                await manager.broadcast({
+                state.add_patient(message["patient"])  # Add the new patient
+                await asyncio.sleep(0.1)  # Small delay to ensure state updates
+                print("Patients before broadcast:", state.patients)  # Debugging step
+                # Broadcast only the updated patients list
+                await manager.broadcast(json.dumps({
                     "type": "update_state",
                     "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time()
+                        "patients": state.patients  # Send only the updated patients list
                     }
-                })
+                }))
             elif message["type"] == "mark_done":
                 state.mark_as_done()
-                await manager.broadcast({
+                await manager.broadcast(json.dumps({
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                })
+                }))
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
                 await manager.broadcast({
@@ -252,10 +255,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     }
                 })
             
-            
     except WebSocketDisconnect:
         # Handle client disconnection
         manager.disconnect(websocket)
+        print("WebSocket disconnected. Attempting to reconnect in 2 seconds...")
+
+        # Retry logic - attempt to reconnect after 2 seconds
+        await asyncio.sleep(2)  # Simulate a delay before retry
+        # Attempt to reconnect by invoking the websocket handler again
+        # You would need to reinitialize the WebSocket connection and session
+        await websocket_endpoint(websocket)
 async def broadcast_state():
     state_data = {
         "type": "update_state",
