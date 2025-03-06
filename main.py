@@ -45,7 +45,7 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        logging.info(f"Broadcasting message: {message}")
+        print(f"Broadcasting message: {message}")
         if not self.active_connections:
             logging.warning("No active connections to broadcast to.")
             return
@@ -54,7 +54,7 @@ class ConnectionManager:
             try:
                 await connection.send_text(json.dumps(message))
             except Exception as e:
-                logging.error(f"Error sending message to a client: {e}")
+                print(f"Error sending message to a client: {e}")
 
 
 class LogoutRequest(BaseModel):
