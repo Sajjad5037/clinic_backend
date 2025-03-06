@@ -39,10 +39,12 @@ class ConnectionManager:
         # Accept the WebSocket connection and add it to the list
         await websocket.accept() #this allows communication between server and client
         self.active_connections.append(websocket)
+        print(f"New client connected! Total clients: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         # Remove a WebSocket from the list when it disconnects
         self.active_connections.remove(websocket)
+        print(f"Client disconnected! Total clients: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
         print(f"Broadcasting message: {message}")
