@@ -47,7 +47,7 @@ class ConnectionManager:
     async def broadcast(self, message: dict):
         print(f"Broadcasting message: {message}")
         if not self.active_connections:
-            logging.warning("No active connections to broadcast to.")
+            print("No active connections to broadcast to.")
             return
 
         for connection in self.active_connections:
