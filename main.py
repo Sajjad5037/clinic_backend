@@ -19,9 +19,7 @@ from datetime import datetime, timedelta,timezone
 import logging
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
 
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
@@ -46,10 +44,17 @@ class ConnectionManager:
         # Remove a WebSocket from the list when it disconnects
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: dict): #async means that the function is non-blocking and it will allow others tasks to be executed as it waits for some operation to complete
-        # Send a message to all connected clients
+    async def broadcast(self, message: dict):
+        logging.info(f"Broadcasting message: {message}")
+        if not self.active_connections:
+            logging.warning("No active connections to broadcast to.")
+            return
+
         for connection in self.active_connections:
-            await connection.send_text(json.dumps(message))
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception as e:
+                logging.error(f"Error sending message to a client: {e}")
 
 
 class LogoutRequest(BaseModel):
