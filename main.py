@@ -106,17 +106,17 @@ class DashboardState:
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
 """
-    class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
-        __tablename__ = "patients"
+class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
+    __tablename__ = "patients"
 
-        id = Column(Integer, primary_key=True, index=True)
-        name = Column(String, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
 
-    class PatientCreate(BaseModel):
-        name: str
+class PatientCreate(BaseModel):
+    name: str
 
-    class PatientResponse(PatientCreate):
-        id: int
+class PatientResponse(PatientCreate):
+    id: int
 """
 class Doctor(Base):
     __tablename__ = "doctors"
