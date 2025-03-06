@@ -65,7 +65,6 @@ class DashboardState:
         self.current_patient = None  # Patient being inspected
         self.inspection_times = []  # List of inspection durations in seconds
         self.start_time = None  # Start time of current inspection
-        self.timers = {}  # Dictionary to store patient wait times
         # Generate a unique public token for this dashboard
         self.public_token = str(uuid.uuid4())
         self.average_inspection_time = 60
@@ -74,8 +73,7 @@ class DashboardState:
         self.patients.append(patient_name)
         if not self.current_patient:
             self.current_patient = patient_name
-            self.start_time = time.time()  # Store the starting time of treatment
-        self.update_timers()  # Update timers when a new patient is added
+            self.start_time = time.time() #to store the starting time of the treatment which is used in mark_as_done to calculate the duration of the treatment
 
     def mark_as_done(self):
         if not self.current_patient:
@@ -87,46 +85,38 @@ class DashboardState:
         self.patients.pop(0)
         self.current_patient = self.patients[0] if self.patients else None
         self.start_time = time.time() if self.current_patient else None
-        self.update_timers()  # Update timers after moving to the next patient
 
     def reset_averageInspectionTime(self):
         """Reset the average inspection time to 60 seconds."""
         self.average_inspection_time = 60       
-    
+       
     def get_average_time(self):
         # Calculate average inspection time, default to 60s if none recorded
         return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 60
-
-    def update_timers(self):
-        """Updates wait times for all patients in the queue."""
-        updated_timers = {}
-        for i in range(1, len(self.patients)):  # Start from index 1 (queue patients)
-            updated_timers[self.patients[i]] = self.get_average_time() * i
-        self.timers = updated_timers  # Update timers dictionary
-
+    
     def get_public_state(self):
         # Return a read-only version of the state for public access
         return {
             "patients": self.patients,
             "currentPatient": self.current_patient,
-            "averageInspectionTime": self.get_average_time(),
-            "timers": self.timers  # Include timers in the public state
+            "averageInspectionTime": self.get_average_time()
         }
+
 # Global state instance
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
 """
-        class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
-            __tablename__ = "patients"
+    class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
+        __tablename__ = "patients"
 
-            id = Column(Integer, primary_key=True, index=True)
-            name = Column(String, nullable=False)
+        id = Column(Integer, primary_key=True, index=True)
+        name = Column(String, nullable=False)
 
-        class PatientCreate(BaseModel):
-            name: str
+    class PatientCreate(BaseModel):
+        name: str
 
-        class PatientResponse(PatientCreate):
-            id: int
+    class PatientResponse(PatientCreate):
+        id: int
 """
 class Doctor(Base):
     __tablename__ = "doctors"
@@ -250,11 +240,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
-                        "timers": state.timers  # Ensure timers are sent
+                        "averageInspectionTime": state.get_average_time()
                     }
                 })
-
             elif message["type"] == "mark_done":
                 state.mark_as_done()
                 await manager.broadcast({
@@ -262,11 +250,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
-                        "timers": state.timers  # Ensure timers are sent
+                        "averageInspectionTime": state.get_average_time()
                     }
                 })
-
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
                 await manager.broadcast({
@@ -275,19 +261,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.average_inspection_time
                     }
                 })
-
-            elif message["type"] == "update_timers":  # ✅ Handle timer updates
-                state.timers = message["data"]["timers"]  # Store timers in state
-                await manager.broadcast({
-                    "type": "update_state",
-                    "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
-                        "timers": state.timers  # Broadcast updated timers
-                    }
-                })
-    
+            
             
     except WebSocketDisconnect:
         # Handle client disconnection
