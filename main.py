@@ -27,10 +27,11 @@ secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
 
 app = FastAPI()
+clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-# WebSocket connection manager to handle multiple clients
+# WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
     def __init__(self):
         # List to store all active WebSocket connections
@@ -38,19 +39,23 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket):
         # Accept the WebSocket connection and add it to the list
-        await websocket.accept()
+        await websocket.accept() #this allows communication between server and client
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
         # Remove a WebSocket from the list when it disconnects
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: dict):
+    async def broadcast(self, message: dict): #async means that the function is non-blocking and it will allow others tasks to be executed as it waits for some operation to complete
         # Send a message to all connected clients
         for connection in self.active_connections:
             await connection.send_text(json.dumps(message))
+
+
 class LogoutRequest(BaseModel):
-    resetAverageInspectionTime: bool = False
+    resetAverageInspectionTime: bool = True
+
+
 # Instantiate the manager globally
 manager = ConnectionManager()
 # Server-side state for real-time features
@@ -68,7 +73,7 @@ class DashboardState:
         self.patients.append(patient_name)
         if not self.current_patient:
             self.current_patient = patient_name
-            self.start_time = time.time()
+            self.start_time = time.time() #to store the starting time of the treatment which is used in mark_as_done to calculate the duration of the treatment
 
     def mark_as_done(self):
         if not self.current_patient:
@@ -83,14 +88,12 @@ class DashboardState:
 
     def reset_averageInspectionTime(self):
         """Reset the average inspection time to 60 seconds."""
-        self.average_inspection_time = 60
-        
-        self.inspection_times = []  # Optional: Clear past records if needed
-
-
+        self.average_inspection_time = 60       
+       
     def get_average_time(self):
         # Calculate average inspection time, default to 60s if none recorded
         return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 60
+    
     def get_public_state(self):
         # Return a read-only version of the state for public access
         return {
@@ -102,19 +105,19 @@ class DashboardState:
 # Global state instance
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
+"""
+        class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
+            __tablename__ = "patients"
 
-class Patient(Base):
-    __tablename__ = "patients"
+            id = Column(Integer, primary_key=True, index=True)
+            name = Column(String, nullable=False)
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
+        class PatientCreate(BaseModel):
+            name: str
 
-class PatientCreate(BaseModel):
-    name: str
-
-class PatientResponse(PatientCreate):
-    id: int
-
+        class PatientResponse(PatientCreate):
+            id: int
+"""
 class Doctor(Base):
     __tablename__ = "doctors"
 
@@ -433,7 +436,7 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
-
+"""
 # GET /patients - Fetch all patients
 @app.get("/patients", response_model=List[PatientResponse])
 def get_patients():
@@ -468,7 +471,7 @@ def delete_patient(id: int):
     db.commit()
     db.close()
     return {"message": "Patient deleted successfully"}
-    
+    """
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 3000))
     uvicorn.run(app, host="0.0.0.0", port=port)
