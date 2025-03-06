@@ -49,7 +49,7 @@ class ConnectionManager:
         if not self.active_connections:
             print("No active connections to broadcast to.")
             return
-
+        print(f"Active Connections: {len(self.active_connections)}")
         for connection in self.active_connections:
             try:
                 await connection.send_text(json.dumps(message))
