@@ -222,18 +222,23 @@ def get_db():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    # Connect the client
+    # Connect the authenticated client
     await manager.connect(websocket)
     try:
         # Send initial state to the new client
-        await websocket.send_text(json.dumps({
+        initial_state = {
             "type": "update_state",
             "data": {
                 "patients": state.patients,
                 "currentPatient": state.current_patient,
                 "averageInspectionTime": state.get_average_time()
             }
-        }))
+        }
+        await websocket.send_text(json.dumps(initial_state))
+
+        # Broadcast to public clients as well
+        await public_manager.broadcast(initial_state)
+
         while True:
             # Listen for messages from the client
             data = await websocket.receive_text()
@@ -242,34 +247,41 @@ async def websocket_endpoint(websocket: WebSocket):
             # Handle different message types
             if message["type"] == "add_patient":
                 state.add_patient(message["patient"])
-                await manager.broadcast({
+                update = {
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                })
+                }
+                await manager.broadcast(update)
+                await public_manager.broadcast(update)  # 🔹 Update public clients
+
             elif message["type"] == "mark_done":
                 state.mark_as_done()
-                await manager.broadcast({
+                update = {
                     "type": "update_state",
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time()
                     }
-                })
+                }
+                await manager.broadcast(update)
+                await public_manager.broadcast(update)  # 🔹 Update public clients
+
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
-                await manager.broadcast({
+                update = {
                     "type": "update_state",
                     "data": {                        
                         "averageInspectionTime": state.average_inspection_time
                     }
-                })
-            
-            
+                }
+                await manager.broadcast(update)
+                await public_manager.broadcast(update)  # 🔹 Update public clients
+
     except WebSocketDisconnect as e:
         # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
@@ -278,39 +290,36 @@ async def websocket_endpoint(websocket: WebSocket):
         # Log any unexpected errors for debugging
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)  # This should appear in Railway logs
-
         
-async def broadcast_state():
-    state_data = {
-        "type": "update_state",
-        "data": state.get_public_state()
-    }
-    await manager.broadcast(state_data)  # To authenticated clients
-    await public_manager.broadcast(state_data)  # To public clients
 
 # New public WebSocket endpoint for patients
 @app.websocket("/ws/public/{token}")
 async def public_websocket_endpoint(websocket: WebSocket, token: str):
-    # Verify the token matches the dashboard's public token
     if token != state.public_token:
         await websocket.close(code=1008)  # Policy violation
         return
-    
-    # Connect the public client
+
     await public_manager.connect(websocket)
     try:
-        # Send initial state to the public client
+        # Send initial state to the client
         await websocket.send_text(json.dumps({
             "type": "update_state",
             "data": state.get_public_state()
         }))
-        # Keep the connection open for updates (no actions allowed)
+
+        # Keep listening for messages
         while True:
-            await websocket.receive_text()  # Keep alive, but ignore messages
-    except WebSocketDisconnect as e:
-        # Log disconnection details
-        print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
+            try:
+                message = await websocket.receive_text()  # Listen for messages
+                print(f"Received from client: {message}")  # Debugging
+            except WebSocketDisconnect as e:
+                print(f"Client disconnected: Code {e.code}, Reason: {e.reason}")
+                break  # Exit loop when disconnected
+    except Exception as e:
+        print(f"Unexpected WebSocket error: {e}")
+    finally:
         public_manager.disconnect(websocket)
+        print("Client removed from public manager.")
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
