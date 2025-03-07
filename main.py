@@ -93,9 +93,6 @@ class DashboardState:
         self.current_patient = self.patients[0] if self.patients else None
         self.start_time = time.time() if self.current_patient else None
 
-    def reset_averageInspectionTime(self):
-        """Reset the average inspection time to 60 seconds."""
-        self.average_inspection_time = 60       
        
     def get_average_time(self):
         # Calculate average inspection time, default to 60s if none recorded
@@ -258,6 +255,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.broadcast(update)
                 await public_manager.broadcast(update)  # 🔹 Update public clients
 
+            elif message["type"] == "close_connection":
+                await websocket.close()
+                
+                # Remove WebSocket from active connections safely
+                if hasattr(manager, "active_connections"):
+                    manager.active_connections.discard(websocket)
+                
+                if hasattr(public_manager, "active_connections"):
+                    public_manager.active_connections.discard(websocket)
+
+                update = {
+                    "type": "connection_closed",
+                    "data": {
+                        "message": "WebSocket connection has been closed."
+                    }
+                }
+                await manager.broadcast(update)
+                await public_manager.broadcast(update)  # 🔹 Update public clients
+
             elif message["type"] == "mark_done":
                 state.mark_as_done()
                 update = {
@@ -271,17 +287,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.broadcast(update)
                 await public_manager.broadcast(update)  # 🔹 Update public clients
 
-            elif message["type"] == "reset_averageInspectionTime":
-                state.reset_averageInspectionTime()
-                update = {
-                    "type": "update_state",
-                    "data": {                        
-                        "averageInspectionTime": state.average_inspection_time
-                    }
-                }
-                await manager.broadcast(update)
-                await public_manager.broadcast(update)  # 🔹 Update public clients
-
+            
+                
     except WebSocketDisconnect as e:
         # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
@@ -350,6 +357,7 @@ async def login(
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
+    
     if logout_request.resetAverageInspectionTime:
         req.session["averageInspectionTime"] = 60
 
