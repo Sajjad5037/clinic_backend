@@ -257,6 +257,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif message["type"] == "close_connection":
                 await websocket.close()
+                print("program came here")
                 
                 # Remove WebSocket from active connections safely
                 if hasattr(manager, "active_connections"):
