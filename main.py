@@ -15,7 +15,7 @@ import uuid  # For generating unique tokens
 import os
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
-
+import traceback
 import logging
 
 
@@ -263,7 +263,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif message["type"] == "reset_averageInspectionTime":
                 state.reset_averageInspectionTime()
                 await manager.broadcast({
-                    "type": "reset_averageInspectionTime",
+                    "type": "update_state",
                     "data": {                        
                         "averageInspectionTime": state.average_inspection_time
                     }
@@ -273,6 +273,12 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         # Handle client disconnection
         manager.disconnect(websocket)
+    except Exception as e:
+        # Log any unexpected errors for debugging
+        error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
+        print(error_message)  # This should appear in Railway logs
+
+        
 async def broadcast_state():
     state_data = {
         "type": "update_state",
