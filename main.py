@@ -270,8 +270,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
             
             
-    except WebSocketDisconnect:
-        # Handle client disconnection
+    except WebSocketDisconnect as e:
+        # Log disconnection details
+        print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
         manager.disconnect(websocket)
     except Exception as e:
         # Log any unexpected errors for debugging
