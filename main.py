@@ -307,7 +307,9 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
         # Keep the connection open for updates (no actions allowed)
         while True:
             await websocket.receive_text()  # Keep alive, but ignore messages
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as e:
+        # Log disconnection details
+        print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
         public_manager.disconnect(websocket)
 
 # HTTP endpoint to get the public token (for the doctor to share)
