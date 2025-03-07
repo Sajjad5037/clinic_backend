@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
 import traceback
 import logging
-
+from typing import Set
 
 
 
@@ -33,7 +33,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 class ConnectionManager:
     def __init__(self):
         # List to store all active WebSocket connections
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: Set[WebSocket] = set()  # Change from List to Set
 
     async def connect(self, websocket: WebSocket):
         # Accept the WebSocket connection and add it to the list
