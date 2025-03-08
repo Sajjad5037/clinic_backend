@@ -2,7 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
-from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
@@ -148,7 +148,8 @@ class SessionModel(Base):#used for creating database tables and performing CURD 
     id = Column(Integer, primary_key=True, index=True)
     session_token = Column(String, unique=True, index=True)
     doctor_id = Column(Integer, ForeignKey("doctors.id"))
-
+    is_authenticated = Column(Boolean, default=False)
+    
 class DoctorCreate(BaseModel): # for validating API request data befor storing in the database
     id: int
     username: str
@@ -607,3 +608,4 @@ def delete_patient(id: int):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 3000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
