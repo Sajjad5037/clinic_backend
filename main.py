@@ -231,10 +231,17 @@ def get_db():
     finally:
         db.close()
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    # Connect the authenticated client
-    await manager.connect(websocket)
+@app.websocket("/ws/{session_token}")
+async def websocket_endpoint(websocket: WebSocket, session_token: str):
+    # Authenticate and verify session token
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if not session:
+        await websocket.close(code=1008)  # Invalid token, close connection
+        return
+
+    # Add WebSocket connection to the manager based on session token
+    await manager.connect(websocket, session_token)
+
     try:
         # Send initial state to the new client
         initial_state = {
@@ -247,15 +254,14 @@ async def websocket_endpoint(websocket: WebSocket):
         }
         await websocket.send_text(json.dumps(initial_state))
 
-        # Broadcast to public clients as well
-        await public_manager.broadcast(initial_state)
+        # Broadcast to public clients (if applicable)
+        if not session.is_authenticated:
+            await public_manager.broadcast(initial_state)
 
         while True:
-            # Listen for messages from the client
             data = await websocket.receive_text()
             message = json.loads(data)
-            
-            # Handle different message types
+
             if message["type"] == "add_patient":
                 state.add_patient(message["patient"])
                 update = {
@@ -266,12 +272,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.get_average_time()
                     }
                 }
-                await manager.broadcast(update)
-                await public_manager.broadcast(update)  # 🔹 Update public clients
+                await manager.broadcast_to_session(session_token, update)
+                await public_manager.broadcast(update)  # Update public clients
 
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
-                state.reset_all()  # Assume reset_all() clears all patient data
+                state.reset_all()
                 update = {
                     "type": "update_state",
                     "data": {
@@ -280,19 +286,16 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.get_average_time()
                     }
                 }
-                await manager.broadcast(update)
-                await public_manager.broadcast(update)  # 🔹 Update public clients
+                await manager.broadcast_to_session(session_token, update)
+                await public_manager.broadcast(update)  # Update public clients
 
             elif message["type"] == "close_connection":
                 await websocket.close()
-                print("program came here")
+                print("Connection closing")
                 
                 # Remove WebSocket from active connections safely
-                if hasattr(manager, "active_connections"):
-                    manager.active_connections.discard(websocket)
-                
-                if hasattr(public_manager, "active_connections"):
-                    public_manager.active_connections.discard(websocket)
+                await manager.disconnect(websocket, session_token)
+                await public_manager.disconnect(websocket)
 
                 update = {
                     "type": "connection_closed",
@@ -300,8 +303,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "message": "WebSocket connection has been closed."
                     }
                 }
-                await manager.broadcast(update)
-                await public_manager.broadcast(update)  # 🔹 Update public clients
+                await manager.broadcast_to_session(session_token, update)
+                await public_manager.broadcast(update)
 
             elif message["type"] == "mark_done":
                 state.mark_as_done()
@@ -313,20 +316,17 @@ async def websocket_endpoint(websocket: WebSocket):
                         "averageInspectionTime": state.get_average_time()
                     }
                 }
-                await manager.broadcast(update)
-                await public_manager.broadcast(update)  # 🔹 Update public clients
+                await manager.broadcast_to_session(session_token, update)
+                await public_manager.broadcast(update)  # Update public clients
 
-            
-                
     except WebSocketDisconnect as e:
         # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket, session_token)
     except Exception as e:
-        # Log any unexpected errors for debugging
+        # Log unexpected errors
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
-        print(error_message)  # This should appear in Railway logs
-        
+        print(error_message)        
 
 # New public WebSocket endpoint for patients
 @app.websocket("/ws/public/{token}")
@@ -395,9 +395,15 @@ async def login(login_request: LoginRequest, response: Response, db: Session = D
         print("Session cookie set successfully.")
         
         return JSONResponse(
-            content={"message": "Login successful", "id": doctor.id, "name": doctor.name},
-            status_code=200
-        )
+    content={
+        "message": "Login successful",
+        "id": doctor.id,
+        "name": doctor.name,
+        "session_token": session_token  # Add the session token here
+    },
+    status_code=200
+)
+
     
     print("Invalid credentials provided.")
     raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -432,12 +438,12 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
         status_code=200
     )
 
-    # Delete the session cookie (the default cookie name is "session")
-    response.delete_cookie(key="session", path="/")
-    
+    # Delete the session cookie (the default cookie name is "session_token")
+    response.delete_cookie(key="session_token", path="/")
+
     # Alternatively, set the cookie to expire in the past (effectively deletes the cookie)
     response.set_cookie(
-        key="session",
+        key="session_token",  # Make sure this matches the cookie name used in login
         value="",
         expires=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%a, %d-%b-%Y %H:%M:%S GMT"),
         path="/"
