@@ -2,13 +2,13 @@
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
-from sqlalchemy import create_engine, Column, Integer, String,func
+from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response
 import json
 import time
 import uuid  # For generating unique tokens
@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
 import traceback
 import logging
+from uuid import uuid4
 from typing import Set
 
 
@@ -137,7 +138,14 @@ class Doctor(Base):
     name = Column(String)
     specialization = Column(String)
 
-class DoctorCreate(BaseModel):
+class SessionModel(Base):#used for creating database tables and performing CURD (create,update,read and delete) operations
+    __tablename__ = "sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_token = Column(String, unique=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("doctors.id"))
+
+class DoctorCreate(BaseModel): # for validating API request data befor storing in the database
     id: int
     username: str
     password: str
@@ -357,49 +365,99 @@ def get_public_token():
 def read_root():
     return {"message": "Python Backend Connected!"}
 
-    
 @app.post("/login")
-async def login(
-    login_request: LoginRequest,
-    db: Session = Depends(get_db)
-):
+async def login(login_request: LoginRequest, response: Response, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
     if doctor and pwd_context.verify(login_request.password, doctor.password):
+        session_token = str(uuid4())  # Generate unique session ID
+        
+        # Store session in the database
+        db.add(SessionModel(session_token=session_token, doctor_id=doctor.id))
+        db.commit()
+
+        # Set session cookie
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            httponly=True,
+            secure=False,  
+            samesite="Lax",
+            max_age=3600
+        )
+
         return JSONResponse(
-            content={
-                "id": doctor.id,
-                "name": doctor.name,
-                "specialization": doctor.specialization
-            },
+            content={"message": "Login successful", "id": doctor.id, "name": doctor.name},
             status_code=200
         )
-    raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    raise HTTPException(status_code=401, detail="Invalid credentials")    
+# @app.post("/login")
+# async def login(
+#     login_request: LoginRequest,
+#     db: Session = Depends(get_db)
+# ):
+#     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
+#     if doctor and pwd_context.verify(login_request.password, doctor.password):
+#         return JSONResponse(
+#             content={
+#                 "id": doctor.id,
+#                 "name": doctor.name,
+#                 "specialization": doctor.specialization
+#             },
+#             status_code=200
+#         )
+#     raise HTTPException(status_code=401, detail="Invalid credentials")
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
-    
     if logout_request.resetAverageInspectionTime:
-        req.session["averageInspectionTime"] = 60
+        req.session["averageInspectionTime"] = 60  # Reset the value if needed
 
     # Clear the session
     req.session.clear()
 
-    # Create a response and explicitly delete the session cookie.
+    # Create a response and explicitly delete the session cookie
     response = JSONResponse(
         content={"message": "Logged out and session reset."},
         status_code=200
     )
+
     # Delete the session cookie (the default cookie name is "session")
     response.delete_cookie(key="session", path="/")
-     # Alternatively, set the cookie to expire in the past.
+    
+    # Alternatively, set the cookie to expire in the past (effectively deletes the cookie)
     response.set_cookie(
-    key="session",
-    value="",
-    expires=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%a, %d-%b-%Y %H:%M:%S GMT"),
-    path="/"
+        key="session",
+        value="",
+        expires=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%a, %d-%b-%Y %H:%M:%S GMT"),
+        path="/"
     )
+
     return response
+# @app.post("/logout")
+# async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
+#     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
+#     if logout_request.resetAverageInspectionTime:
+#         req.session["averageInspectionTime"] = 60
+
+#     # Clear the session
+#     req.session.clear()
+
+#     # Create a response and explicitly delete the session cookie.
+#     response = JSONResponse(
+#         content={"message": "Logged out and session reset."},
+#         status_code=200
+#     )
+#     # Delete the session cookie (the default cookie name is "session")
+#     response.delete_cookie(key="session", path="/")
+#     # Alternatively, set the cookie to expire in the past.
+#     response.set_cookie(
+#         key="session",
+#         value="",
+#         expires=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%a, %d-%b-%Y %H:%M:%S GMT"),
+#         path="/"
+#     )
+#     return response
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
     max_id = db.query(func.max(Doctor.id)).scalar()
