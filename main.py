@@ -36,12 +36,14 @@ class ConnectionManager:
         # List to store all active WebSocket connections
         self.active_connections: Set[WebSocket] = set()  # Change from List to Set
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, session_token: str):
         # Accept the WebSocket connection and add it to the list
-        await websocket.accept() #this allows communication between server and client
+        await websocket.accept()  # this allows communication between server and client
         self.active_connections.add(websocket)
-        print(f"New client connected! Total clients: {len(self.active_connections)}")
-
+        print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
+        # Optionally, store the session_token along with the connection if needed
+        self.client_tokens[websocket] = session_token  # assuming you have this mapping
+        
     def disconnect(self, websocket: WebSocket):
         # Remove a WebSocket from the list when it disconnects
         self.active_connections.discard(websocket)
