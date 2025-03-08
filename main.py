@@ -367,14 +367,22 @@ def read_root():
 
 @app.post("/login")
 async def login(login_request: LoginRequest, response: Response, db: Session = Depends(get_db)):
+    print(f"Received login request for username: {login_request.username}")
     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
+    
+    if not doctor:
+        print("No doctor found with that username.")
+    
     if doctor and pwd_context.verify(login_request.password, doctor.password):
+        print("Password verified successfully.")
         session_token = str(uuid4())  # Generate unique session ID
+        print(f"Generated session token: {session_token}")
         
         # Store session in the database
         db.add(SessionModel(session_token=session_token, doctor_id=doctor.id))
         db.commit()
-
+        print("Session stored in the database.")
+        
         # Set session cookie
         response.set_cookie(
             key="session_token",
@@ -384,13 +392,15 @@ async def login(login_request: LoginRequest, response: Response, db: Session = D
             samesite="Lax",
             max_age=3600
         )
-
+        print("Session cookie set successfully.")
+        
         return JSONResponse(
             content={"message": "Login successful", "id": doctor.id, "name": doctor.name},
             status_code=200
         )
-
-    raise HTTPException(status_code=401, detail="Invalid credentials")    
+    
+    print("Invalid credentials provided.")
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 # @app.post("/login")
 # async def login(
 #     login_request: LoginRequest,
