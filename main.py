@@ -96,7 +96,7 @@ class DashboardState:
        
     def get_average_time(self):
         # Calculate average inspection time, default to 60s if none recorded
-        return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 60
+        return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 300
     
     def get_public_state(self):
         # Return a read-only version of the state for public access
@@ -105,6 +105,12 @@ class DashboardState:
             "currentPatient": self.current_patient,
             "averageInspectionTime": self.get_average_time()
         }
+    def reset_all(self):
+        """Reset all patient-related data to the initial state."""
+        self.patients = []
+        self.current_patient = None
+        self.inspection_times = []  # Assuming this is used for calculating average time
+
 
 # Global state instance
 state = DashboardState()
@@ -244,6 +250,20 @@ async def websocket_endpoint(websocket: WebSocket):
             # Handle different message types
             if message["type"] == "add_patient":
                 state.add_patient(message["patient"])
+                update = {
+                    "type": "update_state",
+                    "data": {
+                        "patients": state.patients,
+                        "currentPatient": state.current_patient,
+                        "averageInspectionTime": state.get_average_time()
+                    }
+                }
+                await manager.broadcast(update)
+                await public_manager.broadcast(update)  # 🔹 Update public clients
+
+            elif message["type"] == "reset_all":
+                print("Received reset_all message:", message)
+                state.reset_all()  # Assume reset_all() clears all patient data
                 update = {
                     "type": "update_state",
                     "data": {
