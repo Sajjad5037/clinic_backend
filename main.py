@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
-from typing import List
+from typing import List,Dict,Set
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response
 import json
 import time
@@ -35,6 +35,8 @@ class ConnectionManager:
     def __init__(self):
         # List to store all active WebSocket connections
         self.active_connections: Set[WebSocket] = set()  # Change from List to Set
+        # Dictionary to store the WebSocket connections with their session tokens
+        self.client_tokens: Dict[WebSocket, str] = {}
 
     async def connect(self, websocket: WebSocket, session_token: str):
         # Accept the WebSocket connection and add it to the list
@@ -43,7 +45,7 @@ class ConnectionManager:
         print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
         # Optionally, store the session_token along with the connection if needed
         self.client_tokens[websocket] = session_token  # assuming you have this mapping
-        
+
     def disconnect(self, websocket: WebSocket):
         # Remove a WebSocket from the list when it disconnects
         self.active_connections.discard(websocket)
