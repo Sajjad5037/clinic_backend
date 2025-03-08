@@ -62,7 +62,20 @@ class ConnectionManager:
                 await connection.send_text(json.dumps(message))
             except Exception as e:
                 print(f"Error sending message to a client: {e}")
-
+    async def broadcast_to_session(self, session_token: str, message: dict):
+        # Broadcast message to all WebSocket connections for a specific session
+        print(f"Broadcasting message to session {session_token}: {message}")
+        if not self.active_connections:
+            print("No active connections to broadcast to.")
+            return
+        
+        # Iterate through active connections and send message if the session_token matches
+        for connection, token in self.client_tokens.items():
+            if token == session_token:
+                try:
+                    await connection.send_text(json.dumps(message))
+                except Exception as e:
+                    print(f"Error sending message to session {session_token}: {e}")
 
 class LogoutRequest(BaseModel):
     resetAverageInspectionTime: bool = True
@@ -149,7 +162,7 @@ class SessionModel(Base):#used for creating database tables and performing CURD 
     session_token = Column(String, unique=True, index=True)
     doctor_id = Column(Integer, ForeignKey("doctors.id"))
     is_authenticated = Column(Boolean, default=False)
-    
+
 class DoctorCreate(BaseModel): # for validating API request data befor storing in the database
     id: int
     username: str
@@ -608,4 +621,3 @@ def delete_patient(id: int):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 3000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
