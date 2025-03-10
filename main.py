@@ -100,8 +100,10 @@ class DashboardState:
     def __init__(self):
         self.sessions = {}  # Store session-specific state
 
-    def get_session(self, session_token):
-        if session_token not in self.sessions:
+    def get_session(self, session_token=None):
+        if session_token is None:
+            # If no session_token is provided, generate a new one
+            session_token = str(uuid.uuid4())
             self.sessions[session_token] = {
                 "patients": [],
                 "current_patient": None,
@@ -111,7 +113,6 @@ class DashboardState:
                 "public_token": str(uuid.uuid4())
             }
         return self.sessions[session_token]
-
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
         session["patients"].append(patient_name)
@@ -419,7 +420,9 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token():
-    return {"publicToken": state.public_token}
+    # Retrieve session data, you can either pass an existing session_token or generate a new one
+    session_data = state.get_session()  # You can generate a new session here
+    return {"publicToken": session_data["public_token"]}  # Access the public_token from the session data
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
