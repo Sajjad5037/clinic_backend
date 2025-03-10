@@ -112,6 +112,17 @@ class DashboardState:
                 "average_inspection_time": 60,
                 "public_token": str(uuid.uuid4())
             }
+        else:
+            # If session_token is provided, check if it exists, otherwise create it
+            if session_token not in self.sessions:
+                self.sessions[session_token] = {
+                    "patients": [],
+                    "current_patient": None,
+                    "inspection_times": [],
+                    "start_time": None,
+                    "average_inspection_time": 60,
+                    "public_token": str(uuid.uuid4())
+                }
         return self.sessions[session_token]
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
@@ -311,8 +322,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             message = json.loads(data)
 
             if message["type"] == "add_patient":
-                session_token = message.get("session_token")
+                session_token = message.get("session_token")                
                 patient_name = message.get("patient")
+                
                 state.add_patient(session_token, patient_name)
                 update = {
                     "type": "update_state",
