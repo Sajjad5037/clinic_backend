@@ -405,37 +405,63 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
 @app.websocket("/ws/public/{token}")
 async def public_websocket_endpoint(websocket: WebSocket, token: str):
-    # Check if the token matches the public token
-    session_data = state.get_session(token)  # Retrieve session data for the token
-    if token != session_data["public_token"]:
-        await websocket.close(code=1008)  # Policy violation
-        return
-
-    # Add WebSocket connection to the public manager
-    await public_manager.connect(websocket, token)
-    
     try:
+        # Debug: Print the received token from the URL
+        print(f"WebSocket connection attempt with token: {token}")
+        
+        # Retrieve session data using the provided token
+        session_data = state.get_session(token)  # Retrieve session data for the token
+        
+        # Debug: Print the session data for the provided token
+        if session_data:
+            print(f"Session data for token {token}: {session_data}")
+        else:
+            print(f"No session data found for token {token}")
+        
+        # Check if the token matches the public token
+        if token != session_data.get("public_token", None):
+            print(f"Token mismatch: {token} != {session_data.get('public_token')}")
+            await websocket.close(code=1008)  # Policy violation: close connection
+            return
+
+        # Add WebSocket connection to the public manager
+        await public_manager.connect(websocket, token)
+        print(f"WebSocket connected for token: {token}")
+
         # Send initial state to the client
         initial_state = {
             "type": "update_state",
             "data": state.get_public_state(token)  # Get the public state using session token
         }
+        print(f"Sending initial state to client: {initial_state}")
         await websocket.send_text(json.dumps(initial_state))
 
         # Keep listening for messages
         while True:
             try:
-                message = await websocket.receive_text()  # Listen for messages
-                print(f"Received from client: {message}")  # Debugging
+                # Listen for incoming messages from the client
+                message = await websocket.receive_text()
+                print(f"Received from client: {message}")  # Debugging: Print received message
+                
+                # Add logic to handle different message types (optional)
+                # Example: if message["type"] == "some_action": process_message(message)
+
             except WebSocketDisconnect as e:
+                # Log the disconnection event with the reason and code
                 print(f"Client disconnected: Code {e.code}, Reason: {e.reason}")
                 break  # Exit loop when disconnected
+
+            except Exception as e:
+                # Log any unexpected errors during message reception
+                print(f"Error receiving message: {e}")
+
     except Exception as e:
+        # Log any errors that occur during WebSocket connection
         print(f"Unexpected WebSocket error: {e}")
     finally:
-        # Remove the client from the public manager
-        public_manager.disconnect(websocket, token)
-        print("Client removed from public manager.")
+        # Remove the client from the public manager upon disconnection or error
+        await public_manager.disconnect(websocket, token)
+        print(f"Client removed from public manager for token: {token}")
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
