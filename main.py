@@ -312,7 +312,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 print("Connection closing")
                 
                 # Remove WebSocket from active connections safely
-                await manager.disconnect(websocket, session_token)
+                await manager.disconnect(websocket)
                 await public_manager.disconnect(websocket)
 
                 update = {
@@ -340,7 +340,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except WebSocketDisconnect as e:
         # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        await manager.disconnect(websocket, session_token)
+        await manager.disconnect(websocket)
     except Exception as e:
         # Log unexpected errors
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
