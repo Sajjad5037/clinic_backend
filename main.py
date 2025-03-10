@@ -22,6 +22,7 @@ from typing import Set
 
 
 
+
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
 
@@ -258,6 +259,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         return
 
     # Add WebSocket connection to the manager based on session token
+    
     await manager.connect(websocket, session_token)
 
     try:
@@ -274,7 +276,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
         # Broadcast to public clients (if applicable)
         if not session.is_authenticated:
-            await public_manager.broadcast(initial_state)
+            await public_manager.broadcast_to_session(session_token,initial_state)
 
         while True:
             data = await websocket.receive_text()
@@ -291,8 +293,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
-
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
+                
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
                 state.reset_all()
@@ -305,7 +307,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
 
             elif message["type"] == "close_connection":
                 await websocket.close()
@@ -322,7 +324,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)
+                await public_manager.broadcast_to_session(session_token,update)
 
             elif message["type"] == "mark_done":
                 state.mark_as_done()
@@ -335,7 +337,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
+                
 
     except WebSocketDisconnect as e:
         # Log disconnection details
