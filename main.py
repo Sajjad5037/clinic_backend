@@ -77,10 +77,14 @@ class ConnectionManager:
         
         # Iterate through active connections and send message if the session_token matches
         for connection, token in self.client_tokens.items():
-            print(f"Current client tokens: {self.client_tokens.items()}")  # Print all active connections and their tokens
+            print(f"Connection is: {connection}")
+            print(f"Token is: {token}")            
+            print(f"Session token is: {session_token}\n\n")
             
+
             if token == session_token:
                 try:
+                    print(f"sending message where message: {message} \nconnection is {connection}\n token is {token}\n and session token is {session_token}\n")
                     await connection.send_text(json.dumps(message))
                 except Exception as e:
                     print(f"Error sending message to session {session_token}: {e}")
