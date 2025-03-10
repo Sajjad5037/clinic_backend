@@ -281,7 +281,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
         # Broadcast to public clients (if applicable)
         if not session.is_authenticated:
-            await public_manager.broadcast(session_token,initial_state)
+            await public_manager.broadcast_to_session(session_token,initial_state)
 
         while True:
             data = await websocket.receive_text()
