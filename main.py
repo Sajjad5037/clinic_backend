@@ -273,7 +273,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             "data": {
                 "patients": state.patients,
                 "currentPatient": state.current_patient,
-                "averageInspectionTime": state.get_average_time()
+                "averageInspectionTime": state.get_average_time(),
+                "session_token": session_token
             }
         }
         await websocket.send_text(json.dumps(initial_state))
@@ -293,7 +294,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time()
+                        "averageInspectionTime": state.get_average_time(),
+                        "session_token":session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
@@ -307,7 +309,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time()
+                        "averageInspectionTime": state.get_average_time(),
+                        "session_token":session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
@@ -337,11 +340,12 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     "data": {
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time()
+                        "averageInspectionTime": state.get_average_time(),
+                        "session_token":session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
 
     except WebSocketDisconnect as e:
         # Log disconnection details
