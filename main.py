@@ -25,7 +25,9 @@ from typing import Set
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
 
+
 app = FastAPI()
+session_states = {}
 clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -40,12 +42,10 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, session_token: str):
         # Accept the WebSocket connection and add it to the list
-        await websocket.accept()  # this allows communication between server and client
+        await websocket.accept()
         self.active_connections.add(websocket)
+        self.client_tokens[websocket] = session_token  # Add session token to this connection
         print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
-        # Optionally, store the session_token along with the connection if needed
-        self.client_tokens[websocket] = session_token  # assuming you have this mapping
-
     def disconnect(self, websocket: WebSocket, session_token: str):
         # Remove the WebSocket from the session-specific connection set
         if session_token in self.active_connections:
@@ -54,9 +54,7 @@ class ConnectionManager:
             if not self.active_connections[session_token]:
                 del self.active_connections[session_token]
         
-        # Calculate total active connections across all sessions for logging
-        total_clients = sum(len(conns) for conns in self.active_connections.values())
-        print(f"Client disconnected from session {session_token}! Total clients: {total_clients}")
+        
     async def broadcast(self, message: dict):
         print(f"Broadcasting message: {message}")
         if not self.active_connections:
@@ -100,50 +98,61 @@ manager = ConnectionManager()
 # Server-side state for real-time features
 class DashboardState:
     def __init__(self):
-        self.patients = []  # List of patient names (simplified for this example)
-        self.current_patient = None  # Patient being inspected
-        self.inspection_times = []  # List of inspection durations in seconds
-        self.start_time = None  # Start time of current inspection
-        # Generate a unique public token for this dashboard
-        self.public_token = str(uuid.uuid4())
-        self.average_inspection_time = 60
+        self.sessions = {}  # Store session-specific state
 
-    def add_patient(self, patient_name: str):
-        self.patients.append(patient_name)
-        if not self.current_patient:
-            self.current_patient = patient_name
-            self.start_time = time.time() #to store the starting time of the treatment which is used in mark_as_done to calculate the duration of the treatment
+    def get_session(self, session_token):
+        if session_token not in self.sessions:
+            self.sessions[session_token] = {
+                "patients": [],
+                "current_patient": None,
+                "inspection_times": [],
+                "start_time": None,
+                "average_inspection_time": 60,
+                "public_token": str(uuid.uuid4())
+            }
+        return self.sessions[session_token]
 
-    def mark_as_done(self):
-        if not self.current_patient:
+    def add_patient(self, session_token, patient_name: str):
+        session = self.get_session(session_token)
+        session["patients"].append(patient_name)
+        if not session["current_patient"]:
+            session["current_patient"] = patient_name
+            session["start_time"] = time.time()
+
+    def mark_as_done(self, session_token):
+        session = self.get_session(session_token)
+        if not session["current_patient"]:
             return
-        # Calculate duration and store it
-        duration = time.time() - self.start_time
-        self.inspection_times.append(duration)
-        # Shift to next patient
-        self.patients.pop(0)
-        self.current_patient = self.patients[0] if self.patients else None
-        self.start_time = time.time() if self.current_patient else None
+        
+        duration = time.time() - session["start_time"]
+        session["inspection_times"].append(duration)
+        
+        session["patients"].pop(0)
+        session["current_patient"] = session["patients"][0] if session["patients"] else None
+        session["start_time"] = time.time() if session["current_patient"] else None
 
-       
-    def get_average_time(self):
-        # Calculate average inspection time, default to 60s if none recorded
-        return round(sum(self.inspection_times) / len(self.inspection_times)) if self.inspection_times else 300
-    
-    def get_public_state(self):
-        # Return a read-only version of the state for public access
+    def get_average_time(self, session_token):
+        session = self.get_session(session_token)
+        return round(sum(session["inspection_times"]) / len(session["inspection_times"])) if session["inspection_times"] else 300
+
+    def get_public_state(self, session_token):
+        session = self.get_session(session_token)
         return {
-            "patients": self.patients,
-            "currentPatient": self.current_patient,
-            "averageInspectionTime": self.get_average_time()
+            "patients": session["patients"],
+            "currentPatient": session["current_patient"],
+            "averageInspectionTime": self.get_average_time(session_token)
         }
-    def reset_all(self):
-        """Reset all patient-related data to the initial state."""
-        self.patients = []
-        self.current_patient = None
-        self.inspection_times = []  # Assuming this is used for calculating average time
 
-
+    def reset_all(self, session_token):
+        if session_token in self.sessions:
+            self.sessions[session_token] = {
+                "patients": [],
+                "current_patient": None,
+                "inspection_times": [],
+                "start_time": None,
+                "average_inspection_time": 60,
+                "public_token": str(uuid.uuid4())
+            }
 # Global state instance
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
@@ -271,6 +280,11 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         await websocket.close(code=1008)  # Invalid token, close connection
         return
 
+    # Ensure each session gets its own independent state
+    if session_token not in session_states:
+        session_states[session_token] = DashboardState()  # Create a new state for this session
+    state = session_states[session_token]  # Get the state for this session
+
     # Add WebSocket connection to the manager based on session token
     await manager.connect(websocket, session_token)
 
@@ -289,7 +303,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
         # Broadcast to public clients (if applicable)
         if not session.is_authenticated:
-            await public_manager.broadcast_to_session(session_token,initial_state)
+            await public_manager.broadcast_to_session(session_token, initial_state)
 
         while True:
             data = await websocket.receive_text()
@@ -303,11 +317,11 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time(),
-                        "session_token":session_token
+                        "session_token": session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
 
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
@@ -318,19 +332,19 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time(),
-                        "session_token":session_token
+                        "session_token": session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
 
             elif message["type"] == "close_connection":
                 await websocket.close()
                 print("Connection closing")
                 
                 # Remove WebSocket from active connections safely
-                await manager.disconnect(websocket,session_token)
-                await public_manager.disconnect(websocket,session_token)
+                await manager.disconnect(websocket, session_token)
+                await public_manager.disconnect(websocket, session_token)
 
                 update = {
                     "type": "connection_closed",
@@ -341,6 +355,10 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 await manager.broadcast_to_session(session_token, update)
                 await public_manager.broadcast(update)
 
+                # Remove state when session ends
+                if session_token in session_states:
+                    del session_states[session_token]  
+
             elif message["type"] == "mark_done":
                 state.mark_as_done()
                 update = {
@@ -349,20 +367,23 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "patients": state.patients,
                         "currentPatient": state.current_patient,
                         "averageInspectionTime": state.get_average_time(),
-                        "session_token":session_token
+                        "session_token": session_token
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
 
     except WebSocketDisconnect as e:
-        # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        await manager.disconnect(websocket,session_token)
+        await manager.disconnect(websocket, session_token)
+
+        # Remove session state after disconnect
+        if session_token in session_states:
+            del session_states[session_token]
+
     except Exception as e:
-        # Log unexpected errors
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
-        print(error_message)        
+        print(error_message)
 
 # New public WebSocket endpoint for patients
 @app.websocket("/ws/public/{token}")
