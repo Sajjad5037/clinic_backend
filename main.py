@@ -46,11 +46,17 @@ class ConnectionManager:
         # Optionally, store the session_token along with the connection if needed
         self.client_tokens[websocket] = session_token  # assuming you have this mapping
 
-    def disconnect(self, websocket: WebSocket):
-        # Remove a WebSocket from the list when it disconnects
-        self.active_connections.discard(websocket)
-        print(f"Client disconnected! Total clients: {len(self.active_connections)}")
-
+    def disconnect(self, websocket: WebSocket, session_token: str):
+        # Remove the WebSocket from the session-specific connection set
+        if session_token in self.active_connections:
+            self.active_connections[session_token].discard(websocket)
+            # Clean up the session if no connections remain
+            if not self.active_connections[session_token]:
+                del self.active_connections[session_token]
+        
+        # Calculate total active connections across all sessions for logging
+        total_clients = sum(len(conns) for conns in self.active_connections.values())
+        print(f"Client disconnected from session {session_token}! Total clients: {total_clients}")
     async def broadcast(self, message: dict):
         print(f"Broadcasting message: {message}")
         if not self.active_connections:
@@ -274,7 +280,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
         # Broadcast to public clients (if applicable)
         if not session.is_authenticated:
-            await public_manager.broadcast(initial_state)
+            await public_manager.broadcast(session_token,initial_state)
 
         while True:
             data = await websocket.receive_text()
@@ -291,7 +297,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
 
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
@@ -305,15 +311,15 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)  # Update public clients
+                await public_manager.broadcast_to_session(session_token,update)  # Update public clients
 
             elif message["type"] == "close_connection":
                 await websocket.close()
                 print("Connection closing")
                 
                 # Remove WebSocket from active connections safely
-                await manager.disconnect(websocket)
-                await public_manager.disconnect(websocket)
+                await manager.disconnect(websocket,session_token)
+                await public_manager.disconnect(websocket,session_token)
 
                 update = {
                     "type": "connection_closed",
@@ -340,7 +346,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except WebSocketDisconnect as e:
         # Log disconnection details
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        await manager.disconnect(websocket)
+        await manager.disconnect(websocket,session_token)
     except Exception as e:
         # Log unexpected errors
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
@@ -353,7 +359,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
         await websocket.close(code=1008)  # Policy violation
         return
 
-    await public_manager.connect(websocket)
+    await public_manager.connect(websocket,token)
     try:
         # Send initial state to the client
         await websocket.send_text(json.dumps({
@@ -372,7 +378,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     except Exception as e:
         print(f"Unexpected WebSocket error: {e}")
     finally:
-        public_manager.disconnect(websocket)
+        public_manager.disconnect(websocket,token)
         print("Client removed from public manager.")
 
 # HTTP endpoint to get the public token (for the doctor to share)
