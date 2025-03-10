@@ -71,23 +71,26 @@ class ConnectionManager:
     async def broadcast_to_session(self, session_token: str, message: dict):
         # Broadcast message to all WebSocket connections for a specific session
         print(f"Broadcasting message to session {session_token}: {message}")
+        
         if not self.active_connections:
             print("No active connections to broadcast to.")
             return
-        
+
         # Iterate through active connections and send message if the session_token matches
         for connection, token in self.client_tokens.items():
-            print(f"Connection is: {connection}")
-            print(f"Token is: {token}")            
-            print(f"Session token is: {session_token}\n\n")
-            
+            print(f"Connection: {connection}")
+            print(f"Token associated with this connection: {token}")
+            print(f"Session token provided: {session_token}\n")
 
+            # Check if the session token matches the token for this connection
             if token == session_token:
                 try:
-                    print(f"sending message where message: {message} \nconnection is {connection}\n token is {token}\n and session token is {session_token}\n")
+                    print(f"Sending message to connection: {connection} with session token: {session_token}")
                     await connection.send_text(json.dumps(message))
                 except Exception as e:
                     print(f"Error sending message to session {session_token}: {e}")
+            else:
+                print(f"Skipping connection {connection} as its token does not match the provided session token.")
 class LogoutRequest(BaseModel):
     resetAverageInspectionTime: bool = True
 
