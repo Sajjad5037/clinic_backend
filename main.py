@@ -322,10 +322,10 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             message = json.loads(data)
 
             if message["type"] == "add_patient":
-                session_token = message.get("session_token")                
+                session_token_current = message.get("session_token")                
                 patient_name = message.get("patient")
                 
-                state.add_patient(session_token, patient_name)
+                state.add_patient(session_token_current, patient_name)
                 update = {
                     "type": "update_state",
                     "data": {
@@ -335,11 +335,12 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "session_token": session_token
                     }
                 }
-                await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
+                session_token_current = message.get("session_token") 
                 state.reset_all()
                 update = {
                     "type": "update_state",
@@ -350,16 +351,17 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "session_token": session_token
                     }
                 }
-                await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
             elif message["type"] == "close_connection":
+                session_token_current = message.get("session_token") 
                 await websocket.close()
                 print("Connection closing")
                 
                 # Remove WebSocket from active connections safely
-                await manager.disconnect(websocket, session_token)
-                await public_manager.disconnect(websocket, session_token)
+                await manager.disconnect(websocket, session_token_current)
+                await public_manager.disconnect(websocket, session_token_current)
 
                 update = {
                     "type": "connection_closed",
@@ -367,8 +369,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "message": "WebSocket connection has been closed."
                     }
                 }
-                await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast(update)
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current,update)
 
                 # Remove state when session ends
                 if session_token in session_states:
@@ -376,17 +378,18 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
             elif message["type"] == "mark_done":
                 state.mark_as_done()
+                session_token_current = message.get("session_token") 
                 update = {
                     "type": "update_state",
                     "data": {
                         "patients": session_data["patients"],
                         "currentPatient": session_data["current_patient"],
-                        "averageInspectionTime": state.get_average_time(session_token),
+                        "averageInspectionTime": state.get_average_time(session_token_current),
                         "session_token": session_token
                     }
                 }
-                await manager.broadcast_to_session(session_token, update)
-                await public_manager.broadcast_to_session(session_token, update)  # Update public clients
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
