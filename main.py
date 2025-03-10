@@ -284,7 +284,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     if session_token not in session_states:
         session_states[session_token] = DashboardState()  # Create a new state for this session
     state = session_states[session_token]  # Get the state for this session
-
+    session_data = state.get_session(session_token)  # Get the session data
     # Add WebSocket connection to the manager based on session token
     await manager.connect(websocket, session_token)
 
@@ -293,9 +293,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         initial_state = {
             "type": "update_state",
             "data": {
-                "patients": state.patients,
-                "currentPatient": state.current_patient,
-                "averageInspectionTime": state.get_average_time(),
+                "patients": session_data["patients"],
+                "currentPatient": session_data["current_patient"],
+                "averageInspectionTime": state.get_average_time(session_token),
                 "session_token": session_token
             }
         }
@@ -314,9 +314,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 update = {
                     "type": "update_state",
                     "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
+                        "patients": session_data["patients"],
+                        "currentPatient": session_data["current_patient"],
+                        "averageInspectionTime": state.get_average_time(session_token),
                         "session_token": session_token
                     }
                 }
@@ -329,9 +329,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 update = {
                     "type": "update_state",
                     "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
+                        "patients": session_data["patients"],
+                        "currentPatient": session_data["current_patient"],
+                        "averageInspectionTime": state.get_average_time(session_token),
                         "session_token": session_token
                     }
                 }
@@ -364,9 +364,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 update = {
                     "type": "update_state",
                     "data": {
-                        "patients": state.patients,
-                        "currentPatient": state.current_patient,
-                        "averageInspectionTime": state.get_average_time(),
+                        "patients": session_data["patients"],
+                        "currentPatient": session_data["current_patient"],
+                        "averageInspectionTime": state.get_average_time(session_token),
                         "session_token": session_token
                     }
                 }
