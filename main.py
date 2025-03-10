@@ -310,7 +310,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             message = json.loads(data)
 
             if message["type"] == "add_patient":
-                state.add_patient(message["patient"])
+                session_token = message.get("session_token")
+                patient_name = message.get("patient")
+                state.add_patient(session_token, patient_name)
                 update = {
                     "type": "update_state",
                     "data": {
