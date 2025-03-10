@@ -77,12 +77,13 @@ class ConnectionManager:
         
         # Iterate through active connections and send message if the session_token matches
         for connection, token in self.client_tokens.items():
+            print(f"Current client tokens: {self.client_tokens.items()}")  # Print all active connections and their tokens
+            
             if token == session_token:
                 try:
                     await connection.send_text(json.dumps(message))
                 except Exception as e:
                     print(f"Error sending message to session {session_token}: {e}")
-
 class LogoutRequest(BaseModel):
     resetAverageInspectionTime: bool = True
 
