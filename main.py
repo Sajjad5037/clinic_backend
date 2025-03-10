@@ -403,20 +403,24 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
-# New public WebSocket endpoint for patients
 @app.websocket("/ws/public/{token}")
 async def public_websocket_endpoint(websocket: WebSocket, token: str):
-    if token != state.public_token:
+    # Check if the token matches the public token
+    session_data = state.get_session(token)  # Retrieve session data for the token
+    if token != session_data["public_token"]:
         await websocket.close(code=1008)  # Policy violation
         return
 
-    await public_manager.connect(websocket,token)
+    # Add WebSocket connection to the public manager
+    await public_manager.connect(websocket, token)
+    
     try:
         # Send initial state to the client
-        await websocket.send_text(json.dumps({
+        initial_state = {
             "type": "update_state",
-            "data": state.get_public_state()
-        }))
+            "data": state.get_public_state(token)  # Get the public state using session token
+        }
+        await websocket.send_text(json.dumps(initial_state))
 
         # Keep listening for messages
         while True:
@@ -429,15 +433,23 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     except Exception as e:
         print(f"Unexpected WebSocket error: {e}")
     finally:
-        public_manager.disconnect(websocket,token)
+        # Remove the client from the public manager
+        public_manager.disconnect(websocket, token)
         print("Client removed from public manager.")
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
-def get_public_token():
-    # Retrieve session data, you can either pass an existing session_token or generate a new one
-    session_data = state.get_session()  # You can generate a new session here
-    return {"publicToken": session_data["public_token"]}  # Access the public_token from the session data
+def get_public_token(session_token: str = None):
+    # If no session_token is provided, generate a new one
+    if not session_token:
+        session_token = str(uuid.uuid4())
+
+    # Retrieve session data using the provided or generated session_token
+    session_data = state.get_session(session_token)  # Get the session data using the updated structure
+    
+    # Return the public token for the given session
+    return {"publicToken": session_data["public_token"]}
+
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
