@@ -334,7 +334,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
                 session_token_current = message.get("session_token") 
-                state.reset_all()
+                state.reset_all(session_token_current)
                 update = {
                     "type": "update_state",
                     "data": {
@@ -370,8 +370,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     del session_states[session_token]  
 
             elif message["type"] == "mark_done":
-                state.mark_as_done()
+                
                 session_token_current = message.get("session_token") 
+                state.mark_as_done(session_token_current)
                 update = {
                     "type": "update_state",
                     "data": {
