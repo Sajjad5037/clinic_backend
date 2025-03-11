@@ -466,15 +466,18 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token(session_token: str = None):
-    # If no session_token is provided, generate a new one
     if not session_token:
         session_token = str(uuid.uuid4())
 
-    # Retrieve session data using the provided or generated session_token
-    session_data = state.get_session(session_token)  # Get the session data using the updated structure
-    
-    # Return the public token for the given session
-    return {"publicToken": session_data["public_token"]}
+    print(f"Session Token Requested: {session_token}")
+    session_data = state.get_session(session_token)
+
+    if not session_data:
+        print("Session Not Found")
+        return {"error": "Session not found", "sessionToken": session_token}
+
+    print(f"Stored Public Token: {session_data.get('public_token')}")
+    return {"publicToken": session_data.get("public_token")}
 
 @app.get("/")
 def read_root():
