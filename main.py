@@ -401,7 +401,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     try:
         # Debug: Print the received token from the URL
         print(f"WebSocket connection attempt with token: {token}")
-        """
+        
         # Retrieve session data using the provided token
         session_data = state.get_session(token)  # Retrieve session data for the token
         
@@ -416,7 +416,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
             print(f"Token mismatch: {token} != {session_data.get('public_token')}")
             await websocket.close(code=1008)  # Policy violation: close connection
             return
-        """
+        
 
         # Add WebSocket connection to the public manager
         await public_manager.connect(websocket, token)
