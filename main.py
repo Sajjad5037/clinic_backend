@@ -156,7 +156,7 @@ class DashboardState:
                 "inspection_times": [],
                 "start_time": None,
                 "average_inspection_time": 60,
-                "public_token": str(uuid.uuid4())
+                
             }
 # Global state instance
 state = DashboardState()
