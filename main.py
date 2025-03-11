@@ -149,15 +149,16 @@ class DashboardState:
         }
 
     def reset_all(self, session_token):
-        if session_token in self.sessions:
-            self.sessions[session_token] = {
-                "patients": [],
-                "current_patient": None,
-                "inspection_times": [],
-                "start_time": None,
-                "average_inspection_time": 60,
-                
-            }
+        session = self.get_session(session_token)
+        if not session:
+            return
+
+        session["patients"] = []
+        session["current_patient"] = None
+        session["inspection_times"] = []
+        session["start_time"] = None
+        session["average_inspection_time"] = 60
+
 # Global state instance
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
