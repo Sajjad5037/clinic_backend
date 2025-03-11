@@ -469,7 +469,7 @@ def get_public_token(session_token: str = None):
     if not session_token:
         session_token = str(uuid.uuid4())
 
-    print(f"Session Token Requested: {session_token}")
+    print(f"Session Token Requested: {session_token}") 
     session_data = state.get_session(session_token)
 
     if not session_data:
@@ -482,7 +482,65 @@ def get_public_token(session_token: str = None):
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
+@app.post("/login")
+async def login(
+    login_request: LoginRequest, 
+    response: Response, 
+    db: Session = Depends(get_db)
+):
+    print(f"Received login request for username: {login_request.username}")
 
+    # Fetch doctor from the database
+    doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
+    
+    if not doctor:
+        print("No doctor found with that username.")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not pwd_context.verify(login_request.password, doctor.password):
+        print("Invalid password provided.")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    print("Password verified successfully.")
+
+    # Check if an active session already exists for the doctor
+    existing_session = db.query(SessionModel).filter(SessionModel.doctor_id == doctor.id).first()
+
+    if existing_session:
+        session_token = existing_session.session_token
+        print(f"Existing session found for doctor {doctor.id}: {session_token}")
+    else:
+        # Generate a new session token
+        session_token = str(uuid4())
+        print(f"Generated new session token: {session_token}")
+
+        # Store session in the database
+        new_session = SessionModel(session_token=session_token, doctor_id=doctor.id)
+        db.add(new_session)
+        db.commit()
+        print("New session stored in the database.")
+
+    # Set session cookie
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=False,  # Change to True if using HTTPS
+        samesite="Lax",
+        max_age=3600
+    )
+    print("Session cookie set successfully.")
+
+    return JSONResponse(
+        content={
+            "message": "Login successful",
+            "id": doctor.id,
+            "name": doctor.name,
+            "session_token": session_token  # Send session token for frontend use
+        },
+        status_code=200
+    )
+"""
 @app.post("/login")
 async def login(login_request: LoginRequest, response: Response, db: Session = Depends(get_db)):
     print(f"Received login request for username: {login_request.username}")
@@ -524,23 +582,9 @@ async def login(login_request: LoginRequest, response: Response, db: Session = D
 
     
     print("Invalid credentials provided.")
-    raise HTTPException(status_code=401, detail="Invalid credentials")
-# @app.post("/login")
-# async def login(
-#     login_request: LoginRequest,
-#     db: Session = Depends(get_db)
-# ):
-#     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
-#     if doctor and pwd_context.verify(login_request.password, doctor.password):
-#         return JSONResponse(
-#             content={
-#                 "id": doctor.id,
-#                 "name": doctor.name,
-#                 "specialization": doctor.specialization
-#             },
-#             status_code=200
-#         )
-#     raise HTTPException(status_code=401, detail="Invalid credentials")
+    raise HTTPException(status_code=401, detail="Invalid credentials") 
+"""
+
 @app.post("/logout")
 async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
     # Optionally, if requested, reset the averageInspectionTime (or ignore if not needed)
