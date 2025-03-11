@@ -350,25 +350,29 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
             elif message["type"] == "close_connection":
                 session_token_current = message.get("session_token") 
+
+                # Close the WebSocket connection
                 await websocket.close()
                 print("Connection closing")
-                
-                # Remove WebSocket from active connections safely
+
+                # Safely remove WebSocket from active connections
                 await manager.disconnect(websocket, session_token_current)
                 await public_manager.disconnect(websocket, session_token_current)
 
+                # Remove session state when closing
+                if session_token_current in session_states:
+                    del session_states[session_token_current]
+
+                # Broadcast update to notify clients about the connection closure
                 update = {
                     "type": "connection_closed",
                     "data": {
-                        "message": "WebSocket connection has been closed."
+                        "message": "WebSocket connection has been closed.",
+                        "session_token": session_token_current
                     }
                 }
                 await manager.broadcast_to_session(session_token_current, update)
-                await public_manager.broadcast_to_session(session_token_current,update)
-
-                # Remove state when session ends
-                if session_token in session_states:
-                    del session_states[session_token]  
+                await public_manager.broadcast_to_session(session_token_current, update)
 
             elif message["type"] == "mark_done":
                 
