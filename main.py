@@ -100,10 +100,11 @@ class DashboardState:
     def __init__(self):
         self.sessions = {}  # Store session-specific state
 
-    def get_session(self, session_token=None):
-        if session_token is None:
-            # If no session_token is provided, generate a new one
-            session_token = str(uuid.uuid4())
+ 
+
+    def get_session(self, session_token):
+        if session_token not in self.sessions:
+            # Create a new session if the token is not found
             self.sessions[session_token] = {
                 "patients": [],
                 "current_patient": None,
@@ -112,18 +113,10 @@ class DashboardState:
                 "average_inspection_time": 60,
                 "public_token": str(uuid.uuid4())
             }
-        else:
-            # If session_token is provided, check if it exists, otherwise create it
-            if session_token not in self.sessions:
-                self.sessions[session_token] = {
-                    "patients": [],
-                    "current_patient": None,
-                    "inspection_times": [],
-                    "start_time": None,
-                    "average_inspection_time": 60,
-                    "public_token": str(uuid.uuid4())
-                }
+
+        print(f"line 126: {self.sessions[session_token]}")
         return self.sessions[session_token]
+
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
         session["patients"].append(patient_name)
@@ -408,7 +401,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
     try:
         # Debug: Print the received token from the URL
         print(f"WebSocket connection attempt with token: {token}")
-        
+        """
         # Retrieve session data using the provided token
         session_data = state.get_session(token)  # Retrieve session data for the token
         
@@ -423,6 +416,7 @@ async def public_websocket_endpoint(websocket: WebSocket, token: str):
             print(f"Token mismatch: {token} != {session_data.get('public_token')}")
             await websocket.close(code=1008)  # Policy violation: close connection
             return
+        """
 
         # Add WebSocket connection to the public manager
         await public_manager.connect(websocket, token)
