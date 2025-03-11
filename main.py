@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from passlib.context import CryptContext
 from typing import List,Dict,Set
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
 import json
 import time
 import uuid  # For generating unique tokens
@@ -444,10 +444,7 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
-def get_public_token(session_token: str = None):
-    if not session_token:
-        session_token = str(uuid.uuid4())
-
+def get_public_token(session_token: str = Query(...)):  # Required query param
     print(f"Session Token Requested: {session_token}") 
     session_data = state.get_session(session_token)
 
@@ -455,8 +452,13 @@ def get_public_token(session_token: str = None):
         print("Session Not Found")
         return {"error": "Session not found", "sessionToken": session_token}
 
-    print(f"Stored Public Token: {session_data.get('public_token')}")
-    return {"publicToken": session_data.get("public_token")}
+    public_token = session_data.get("public_token")
+    print(f"Stored Public Token: {public_token}")
+
+    return {
+        "sessionToken": session_token,
+        "publicToken": public_token
+    }
 
 @app.get("/")
 def read_root():
