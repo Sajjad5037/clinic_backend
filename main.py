@@ -45,6 +45,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 class ChatRequest(BaseModel):
     message: str
+    user_name: str = None
 # WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
     def __init__(self):
@@ -783,22 +784,33 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
-        # Check API Key
-        if not openai_api_key:
-            raise HTTPException(status_code=500, detail="API key is not set")
+        if not request.message:
+            raise HTTPException(status_code=400, detail="Message is required")
 
-        # Define the system message
-        system_message = {
-            "role": "system",
-            "content": (
+        # Set system message based on user_name
+        if request.user_name == "Sarfraz":
+            system_message_content = (
+                "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
+                "He did his Masters from America. He charges Rs.5000 per inspection "
+                
+            )
+        elif request.user_name == "Chand":
+            system_message_content = (
+                "You are a virtual assistant for Chand, a hairstylist. "
+                "He charges Rs.500 for a hair cut and 1000 for full body massage "
+                
+            )
+        else:
+            system_message_content = (
                 "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
                 "I have expertise in Python, having studied Automate the Boring Stuff with Python and Master Python for Data Science. "
-                "When interacting with clients, provide insightful responses that highlight my skills and experience. "
-                "Only accept projects that align with my expertise, ensuring that I can deliver high-quality results. "
-                "If the client wishes to communicate further, provide my email address: proactive1.san@gmail.com. "
-                "Your goal is to help attract relevant projects that match my background in Python programming and data science."
+                "When interacting with clients, provide insightful responses that highlight my skills and experience."
+                " Only accept projects that align with my expertise, ensuring that I can deliver high-quality results."
+                " If the client wishes to communicate further, provide my email address: proactive1.san@gmail.com."
+                " Your goal is to help attract relevant projects that match my background in Python programming and data science."
             )
-        }
+
+        system_message = {"role": "system", "content": system_message_content}
 
         # Call OpenAI API
         chat_completion = client.chat.completions.create(
