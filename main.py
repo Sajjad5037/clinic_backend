@@ -20,8 +20,11 @@ import logging
 from uuid import uuid4
 from typing import Set
 from openai import OpenAI
+from dotenv import load_dotenv
 
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
+if not openai_api_key:
+    print("Error: OPENAI_API_KEY_S is not set in environment variables.")
 client = OpenAI(api_key=openai_api_key)
 
 
