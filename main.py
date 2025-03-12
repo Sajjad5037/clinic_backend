@@ -480,6 +480,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
+
+
 @app.websocket("/ws/public/{session_token}/{public_token}")
 async def public_websocket_endpoint(websocket: WebSocket, session_token: str, public_token: str):
     try:
@@ -791,6 +793,13 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
+
+@app.get("/get-doctor-id/{session_token}")
+def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if session and session.doctor_id:
+        return {"doctor_id": session.doctor_id}
+    return {"error": "Invalid session or doctor not found"}
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
