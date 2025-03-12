@@ -118,6 +118,7 @@ class DashboardState:
         if session_token not in self.sessions:
             # Create a new session if the token is not found
             self.sessions[session_token] = {
+                "doctor_name":None,
                 "patients": [],
                 "current_patient": None,
                 "inspection_times": [],
@@ -343,8 +344,17 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
+            
+            if message["type"] == "get_doctor_id":
+                doctor_id = session.doctor_id  # Extract doctor_id
+                response = {
+                    
+                    "doctor_id": doctor_id
+                }
+                await websocket.send_text(json.dumps(response)) 
+                 
 
-            if message["type"] == "add_patient":
+            elif message["type"] == "add_patient":
                 session_token_current = message.get("session_token")                
                 patient_name = message.get("patient")
                 
@@ -788,13 +798,13 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="Message is required")
 
         # Set system message based on user_name
-        if request.user_name == "Sarfraz":
+        if request.user_id == 2:
             system_message_content = (
                 "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
                 "He did his Masters from America. He charges Rs.5000 per inspection "
                 
             )
-        elif request.user_name == "Chand":
+        elif request.user_id == 3:
             system_message_content = (
                 "You are a virtual assistant for Chand, a hairstylist. "
                 "He charges Rs.500 for a hair cut and 1000 for full body massage "
@@ -843,6 +853,7 @@ def add_patient(patient: PatientCreate):
     db.refresh(new_patient)
     db.close()
     return new_patient
+
 
 
 
