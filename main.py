@@ -43,6 +43,8 @@ clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+class ChatRequest(BaseModel):
+    message: str
 # WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
     def __init__(self):
@@ -777,6 +779,39 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    try:
+        # Check API Key
+        if not openai_api_key:
+            raise HTTPException(status_code=500, detail="API key is not set")
+
+        # Define the system message
+        system_message = {
+            "role": "system",
+            "content": (
+                "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
+                "I have expertise in Python, having studied Automate the Boring Stuff with Python and Master Python for Data Science. "
+                "When interacting with clients, provide insightful responses that highlight my skills and experience. "
+                "Only accept projects that align with my expertise, ensuring that I can deliver high-quality results. "
+                "If the client wishes to communicate further, provide my email address: proactive1.san@gmail.com. "
+                "Your goal is to help attract relevant projects that match my background in Python programming and data science."
+            )
+        }
+
+        # Call OpenAI API
+        chat_completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[system_message, {"role": "user", "content": request.message}]
+        )
+
+        # Extract response
+        bot_reply = chat_completion.choices[0].message.content
+        return {"reply": bot_reply}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 """
 # GET /patients - Fetch all patients
 @app.get("/patients", response_model=List[PatientResponse])
