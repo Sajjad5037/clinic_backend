@@ -800,25 +800,34 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
     if session and session.doctor_id:
         return {"doctor_id": session.doctor_id}
     return {"error": "Invalid session or doctor not found"}
-
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
+        # Debugging: Print received request data
+        print("\n🔹 Received request data:", request.model_dump())
+
         if not request.message:
+            print("❌ Error: Message is missing in request")
             raise HTTPException(status_code=400, detail="Message is required")
 
-        # Set system message based on user_name
-        if request.user_id == 2:
+        if request.user_id is None:
+            print("❌ Error: user_id is missing in request")
+            raise HTTPException(status_code=400, detail="User ID is required")
+
+        # Identify user
+        user_id = request.user_id
+        print(f"✅ Processing request for user_id: {user_id}")
+
+        # Set system message based on user_id
+        if user_id == 2:
             system_message_content = (
                 "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
-                "He did his Masters from America. He charges Rs.5000 per inspection "
-                
+                "He did his Masters from America. He charges Rs.5000 per inspection."
             )
-        elif request.user_id == 3:
+        elif user_id == 3:
             system_message_content = (
                 "You are a virtual assistant for Chand, a hairstylist. "
-                "He charges Rs.500 for a hair cut and 1000 for full body massage "
-                
+                "He charges Rs.500 for a haircut and 1000 for a full body massage."
             )
         else:
             system_message_content = (
@@ -831,18 +840,31 @@ async def chat(request: ChatRequest):
             )
 
         system_message = {"role": "system", "content": system_message_content}
+        user_message = {"role": "user", "content": request.message}
 
-        # Call OpenAI API
-        chat_completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[system_message, {"role": "user", "content": request.message}]
-        )
+        print("\n📤 Sending request to OpenAI API...")
+        print("➡️ System message:", system_message)
+        print("➡️ User message:", user_message)
+
+        # OpenAI API call
+        try:
+            chat_completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[system_message, user_message]
+            )
+            print("\n✅ OpenAI API Response received")
+        except Exception as e:
+            print("❌ Error calling OpenAI API:", str(e))
+            raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
         # Extract response
         bot_reply = chat_completion.choices[0].message.content
+        print("\n🤖 Bot reply:", bot_reply)
+
         return {"reply": bot_reply}
 
     except Exception as e:
+        print("\n❌ Server error:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 """
 # GET /patients - Fetch all patients
