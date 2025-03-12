@@ -347,6 +347,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             
             if message["type"] == "get_doctor_id":
                 doctor_id = session.doctor_id  # Extract doctor_id
+                print(session.doctor_id)
                 response = {
                     
                     "doctor_id": doctor_id
@@ -853,7 +854,6 @@ def add_patient(patient: PatientCreate):
     db.refresh(new_patient)
     db.close()
     return new_patient
-
 
 
 
