@@ -19,6 +19,17 @@ import traceback
 import logging
 from uuid import uuid4
 from typing import Set
+from openai import OpenAI
+
+# Fetch the API key from environment variables
+openai_api_key = os.getenv("OPENAI_API_KEY_S")
+
+# Check if API key is set
+if not openai_api_key:
+    print("Error: OPENAI_API_KEY_S is not set in environment variables.")
+
+# Initialize OpenAI client
+client = OpenAI(api_key=openai_api_key)
 
 
 
