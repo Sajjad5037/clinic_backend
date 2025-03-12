@@ -45,7 +45,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 class ChatRequest(BaseModel):
     message: str
-    user_id: str = None
+    user_id: int
 # WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
     def __init__(self):
