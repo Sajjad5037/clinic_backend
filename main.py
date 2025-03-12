@@ -100,8 +100,6 @@ class DashboardState:
     def __init__(self):
         self.sessions = {}  # Store session-specific state
 
- 
-
     def get_session(self, session_token):
         if session_token not in self.sessions:
             # Create a new session if the token is not found
@@ -111,7 +109,8 @@ class DashboardState:
                 "inspection_times": [],
                 "start_time": None,
                 "average_inspection_time": 60,
-                "public_token": str(uuid.uuid4())
+                "public_token": str(uuid.uuid4()),
+                "notices": [] 
             }
 
         print(f"line 126: {self.sessions[session_token]}")
@@ -158,6 +157,22 @@ class DashboardState:
         session["inspection_times"] = []
         session["start_time"] = None
         session["average_inspection_time"] = 60
+
+    def add_notice(self, session_token, notice: str):
+        """Adds a notice to the session's notice board."""
+        session = self.get_session(session_token)
+        session["notices"].append(notice)
+
+    def get_notices(self, session_token):
+        """Returns the list of notices for the session."""
+        session = self.get_session(session_token)
+        return session["notices"]
+    
+    def remove_notice(self, session_token, index: int):
+        """Removes a notice from the session's notice board by index."""
+        session = self.get_session(session_token)
+        if 0 <= index < len(session["notices"]):
+            del session["notices"][index]
 
 # Global state instance
 state = DashboardState()
@@ -387,6 +402,24 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "session_token": session_token
                     }
                 }
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
+            elif message["type"] == "add_notice":
+                session_token_current = message.get("session_token")                
+                notice_text = message.get("notice")
+                
+                state.add_notice(session_token_current, notice_text)
+                
+                session_data = state.get_session(session_token_current)  # Retrieve updated session data
+
+                update = {
+                    "type": "update_notices",
+                    "data": {
+                        "notices": session_data.get("notices", []),
+                        "session_token": session_token_current
+                    }
+                }
+                
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
