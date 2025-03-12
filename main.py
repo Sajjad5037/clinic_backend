@@ -422,6 +422,26 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
+            elif message["type"] == "remove_notice":
+                session_token_current = message.get("session_token")
+                notice_index = message.get("index")
+
+                session_data = state.get_session(session_token_current)
+                
+                if 0 <= notice_index < len(session_data["notices"]):
+                    session_data["notices"].pop(notice_index)  # Remove the notice
+
+                # Prepare update message
+                update = {
+                    "type": "update_notices",
+                    "data": {
+                        "notices": session_data["notices"]
+                    }
+                }
+
+                # Broadcast the updated notices to all clients
+                await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
