@@ -19,7 +19,10 @@ import traceback
 import logging
 from uuid import uuid4
 from typing import Set
+from openai import OpenAI
 
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key)
 
 
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
@@ -31,6 +34,11 @@ session_states = {}
 clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
+# Define request model
+class ChatRequest(BaseModel):
+    message: str
 
 # WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
@@ -518,6 +526,40 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
         "sessionToken": session_token,
         "publicToken": public_token
     }
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    try:
+        # Validate API key
+        if not openai_api_key:
+            raise HTTPException(status_code=500, detail="API key is not set")
+
+        # Define the system message
+        system_message = {
+            "role": "system",
+            "content": (
+                "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
+                "I have expertise in Python, having studied Automate the Boring Stuff with Python and Master Python for Data Science. "
+                "When interacting with clients, provide insightful responses that highlight my skills and experience. "
+                "Only accept projects that align with my expertise, ensuring that I can deliver high-quality results. "
+                "If the client wishes to communicate further, provide my email address: proactive1.san@gmail.com. "
+                "Your goal is to help attract relevant projects that match my background in Python programming and data science."
+            )
+        }
+
+        # Call OpenAI API
+        chat_completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[system_message, {"role": "user", "content": request.message}]
+        )
+
+        # Extract response
+        bot_reply = chat_completion.choices[0].message.content
+        return {"reply": bot_reply}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/")
 def read_root():
