@@ -825,40 +825,24 @@ def get_next_doctor_id(db: Session = Depends(get_db)):
 """
 @app.post("/add_doctor")
 def add_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
-    print("Received request to add doctor:", doctor.dict())  # Print received data
-
-    # Check if username already exists
     existing_doctor = db.query(Doctor).filter(Doctor.username == doctor.username).first()
     if existing_doctor:
-        print("Username already exists:", doctor.username)
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    # Hash the password
     hashed_password = pwd_context.hash(doctor.password)
-    print("Hashed password:", hashed_password)
-
-    # Get next available ID from PostgreSQL
-    next_id = db.execute(text("SELECT nextval('doctor_id_seq')")).scalar()
-    print("Next available ID:", next_id)
 
     new_doctor = Doctor(
-        id=next_id,  # Let PostgreSQL handle ID generation
         username=doctor.username,
         password=hashed_password,
         name=doctor.name,
         specialization=doctor.specialization
     )
 
-    print("Adding new doctor to database:", new_doctor)
-    
-    # Add and commit to database
     db.add(new_doctor)
-    db.commit()
-    db.refresh(new_doctor)
-    
-    print("Doctor added successfully:", new_doctor.id)
+    db.commit()  # ✅ PostgreSQL will auto-assign an ID here
+    db.refresh(new_doctor)  # ✅ Ensures new_doctor has the correct ID
 
-    return {"message": "Doctor added successfully"}
+    return {"message": "Doctor added successfully", "id": new_doctor.id}
 
 @app.put("/edit_doctor/{doctor_id}")
 def update_doctor(doctor_id: int, doctor_data: DoctorUpdate, db: Session = Depends(get_db)):
