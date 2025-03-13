@@ -708,9 +708,9 @@ async def login(
     return JSONResponse(
     content={
         "message": "Login successful",
-        "id": str(doctor.id),  # Convert UUID to string
+        "id": doctor.id,  # Convert UUID to string
         "name": doctor.name,
-        "session_token": session_token
+        "session_token": str(session_token)
     },
     status_code=200
 )
