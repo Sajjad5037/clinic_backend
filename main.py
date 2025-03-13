@@ -222,7 +222,7 @@ class Doctor(Base):
 class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
     is_authenticated = Column(Boolean, default=False)
