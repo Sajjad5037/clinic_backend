@@ -210,7 +210,7 @@ class PatientResponse(PatientCreate):
 class Doctor(Base):
     __tablename__ = "doctors"
 
-    id = Column(Integer, primary_key=True, autoincrement=True) 
+    id = Column(Integer, primary_key=True, server_default=text("nextval('doctors_id_seq')"))
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(Text, nullable=False)  # Store hashed passwords efficiently
     name = Column(String, nullable=False)
