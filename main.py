@@ -208,26 +208,30 @@ class PatientResponse(PatientCreate):
     id: int
 """
 class Doctor(Base):
-    __tablename__ = "doctor"
+    __tablename__ = "doctors"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-generate IDs
-    username = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    name = Column(String)
-    specialization = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True) 
+    username = Column(String, unique=True, index=True, nullable=False)
+    password = Column(Text, nullable=False)  # Store hashed passwords efficiently
+    name = Column(String, nullable=False)
+    specialization = Column(String, nullable=False)
+
+    # Define relationship for cascading delete
+    sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
 
 class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)  # Auto-increment ID
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
-    doctor_id = Column(Integer, ForeignKey("doctor.id", ondelete="CASCADE"))  # Correct table name
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
     is_authenticated = Column(Boolean, default=False)
 
     doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
 
 # Pydantic models for API validation
 class DoctorCreate(BaseModel):  # Used to create doctors
+    
     username: str
     password: str
     name: str
@@ -240,11 +244,11 @@ class DoctorUpdate(BaseModel):  # Used to update doctor details
     specialization: str
 
 class DoctorResponse(BaseModel):  # Used for API responses
-    id: int  # Keep id for responses
+    id: int
     username: str
     name: str
     specialization: str
-    
+
     class Config:
         orm_mode = True  # Enables ORM compatibility
 """
