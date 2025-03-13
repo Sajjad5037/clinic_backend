@@ -706,14 +706,14 @@ async def login(
     print("Session cookie set successfully.")
 
     return JSONResponse(
-        content={
-            "message": "Login successful",
-            "id": doctor.id,
-            "name": doctor.name,
-            "session_token": session_token  # Send session token for frontend use
-        },
-        status_code=200
-    )
+    content={
+        "message": "Login successful",
+        "id": str(doctor.id),  # Convert UUID to string
+        "name": doctor.name,
+        "session_token": session_token
+    },
+    status_code=200
+)
 
 """
 @app.post("/login")
