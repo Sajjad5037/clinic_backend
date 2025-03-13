@@ -208,30 +208,26 @@ class PatientResponse(PatientCreate):
     id: int
 """
 class Doctor(Base):
-    __tablename__ = "doctors"
+    __tablename__ = "doctor"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
-    password = Column(Text, nullable=False)  # Store hashed passwords efficiently
-    name = Column(String, nullable=False)
-    specialization = Column(String, nullable=False)
-
-    # Define relationship for cascading delete
-    sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-generate IDs
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
+    name = Column(String)
+    specialization = Column(String)
 
 class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)  # Auto-increment ID
     session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
-    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
+    doctor_id = Column(Integer, ForeignKey("doctor.id", ondelete="CASCADE"))  # Correct table name
     is_authenticated = Column(Boolean, default=False)
 
     doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
 
 # Pydantic models for API validation
 class DoctorCreate(BaseModel):  # Used to create doctors
-    id: int
     username: str
     password: str
     name: str
@@ -244,11 +240,11 @@ class DoctorUpdate(BaseModel):  # Used to update doctor details
     specialization: str
 
 class DoctorResponse(BaseModel):  # Used for API responses
-    id: int
+    id: int  # Keep id for responses
     username: str
     name: str
     specialization: str
-
+    
     class Config:
         orm_mode = True  # Enables ORM compatibility
 """
