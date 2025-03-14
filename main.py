@@ -924,6 +924,27 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
     
     return doctor
 
+@app.put("/edit_doctor/{doctor_id}")
+def update_doctor(doctor_id: int, doctor_data: DoctorUpdate, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    # Update doctor details
+    doctor.name = doctor_data.name
+    doctor.specialization = doctor_data.specialization
+    doctor.username = doctor_data.username
+
+    # Hash the password if a new one is provided
+    if doctor_data.password:
+        hashed_password = pwd_context.hash(doctor_data.password)
+        doctor.password = hashed_password
+    db.commit()
+    db.refresh(doctor)
+
+    return {"message": "Doctor updated successfully", "doctor": doctor}
+
+
 """
 # Endpoint to get a doctor by ID
 @app.post("/add_doctor")
