@@ -820,7 +820,7 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
-    result = db.execute(text("SELECT nextval('doctor_id_seq')")).scalar()
+    result = db.execute(text("SELECT nextval('doctors_id_seq')")).scalar()
     return result
 """
 @app.get("/get_next_doctor_id")
