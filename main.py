@@ -1031,7 +1031,7 @@ async def chat(request: ChatRequest):
         user_id = request.user_id
 
         # Set system message based on user_id
-        if user_id == 2:
+        if user_id == 10:
             system_message_content = (
                 "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
                 "He did his Masters from America. He charges Rs.5000 per inspection."
