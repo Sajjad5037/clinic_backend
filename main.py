@@ -315,10 +315,23 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
 engine = create_engine(DATABASE_URL)  # Removed SQLite-specific arguments
 
 with engine.connect() as connection:
-    connection.execute(text("CREATE SEQUENCE IF NOT EXISTS doctors_id_seq START WITH 1 INCREMENT BY 1;"))
-    connection.execute(text("ALTER TABLE doctors ALTER COLUMN id SET DEFAULT nextval('doctors_id_seq');"))
-    connection.commit()
+    # Drop the existing sequence if it exists
+    connection.execute(text("DROP SEQUENCE IF EXISTS doctors_id_seq CASCADE;"))
 
+    # Create a new sequence
+    connection.execute(text("CREATE SEQUENCE doctors_id_seq START WITH 1 INCREMENT BY 1;"))
+
+    # Ensure the 'id' column uses the new sequence
+    connection.execute(text("ALTER TABLE doctors ALTER COLUMN id SET DEFAULT nextval('doctors_id_seq');"))
+
+    # Get the max id from the doctors table
+    max_id_result = connection.execute(text("SELECT COALESCE(MAX(id), 0) FROM doctors"))
+    max_id = max_id_result.scalar()
+
+    # Reset sequence to start from the highest existing id
+    connection.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, true);"))
+
+    connection.commit()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Password hashing context
