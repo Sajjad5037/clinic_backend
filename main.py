@@ -881,12 +881,16 @@ def view_doctors(db: Session = Depends(get_db)):
 
 @app.get("/doctors/{doctor_id}", response_model=DoctorResponse)
 def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
+    print(f"Fetching doctor with ID: {doctor_id}")  # Debugging
+    
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    
     if not doctor:
+        print("Doctor not found in database")  # Debugging
         raise HTTPException(status_code=404, detail="Doctor not found")
     
+    print(f"Doctor found: {doctor}")  # Debugging
     return doctor
-
 
 @app.delete("/delete_doctor/{doctor_id}")
 def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
