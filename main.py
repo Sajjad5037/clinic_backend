@@ -1,13 +1,13 @@
-
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
-from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean
+from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.dialects.postgresql import UUID
 import uvicorn
 from passlib.context import CryptContext
-from typing import List,Dict,Set
+from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
 import json
 import time
@@ -20,6 +20,8 @@ import logging
 from uuid import uuid4
 from typing import Set
 from openai import OpenAI
+from sqlalchemy.orm import relationship
+
 
 # Fetch the API key from environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
@@ -208,6 +210,51 @@ class PatientResponse(PatientCreate):
 class Doctor(Base):
     __tablename__ = "doctors"
 
+    id = Column(Integer, primary_key=True, server_default=text("nextval('doctors_id_seq')"))
+    username = Column(String, unique=True, index=True, nullable=False)
+    password = Column(Text, nullable=False)  # Store hashed passwords efficiently
+    name = Column(String, nullable=False)
+    specialization = Column(String, nullable=False)
+
+    # Define relationship for cascading delete
+    sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
+
+class SessionModel(Base):  # Handles authentication sessions
+    __tablename__ = "sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
+    is_authenticated = Column(Boolean, default=False)
+
+    doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
+
+# Pydantic models for API validation
+class DoctorCreate(BaseModel):  # Used to create doctors
+    
+    username: str
+    password: str
+    name: str
+    specialization: str
+
+class DoctorUpdate(BaseModel):  # Used to update doctor details
+    username: str
+    password: Optional[str] = None  # Optional password update
+    name: str
+    specialization: str
+
+class DoctorResponse(BaseModel):  # Used for API responses
+    id: int
+    username: str
+    name: str
+    specialization: str
+
+    class Config:
+        orm_mode = True  # Enables ORM compatibility
+"""
+class Doctor(Base):
+    __tablename__ = "doctors"
+
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password = Column(String)
@@ -219,6 +266,7 @@ class SessionModel(Base):#used for creating database tables and performing CURD 
 
     id = Column(Integer, primary_key=True, index=True)
     session_token = Column(String, unique=True, index=True)
+    session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
     doctor_id = Column(Integer, ForeignKey("doctors.id"))
     is_authenticated = Column(Boolean, default=False)
 
@@ -240,6 +288,7 @@ class DoctorResponse(BaseModel):
     username: str
     name: str
     specialization: str
+"""
 
 # Allow Firebase frontend and local development
 origins = [
@@ -257,6 +306,65 @@ app.add_middleware(
 
 app.add_middleware(SessionMiddleware, secret_key=secret_key)
 
+# Load environment variables
+DATABASE_URL = os.getenv("PostgreSQL_database")  # Use PostgreSQL instead of SQLite
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "sajjad")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
+
+# Initialize PostgreSQL database engine
+engine = create_engine(DATABASE_URL)  # Removed SQLite-specific arguments
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_admin(db: Session):
+    """Ensure an admin user exists in the database."""
+    admin = db.query(Doctor).filter_by(username=ADMIN_USERNAME).first()
+
+    if not admin:
+        admin = Doctor(
+            username=ADMIN_USERNAME,
+            password=pwd_context.hash(ADMIN_PASSWORD),
+            name="Sajjad Ali Noor",
+            specialization="Administrator"
+        )
+        db.add(admin)
+        db.commit()  # ✅ Commit to assign admin.id
+        db.refresh(admin)
+
+    else:
+        admin.password = pwd_context.hash(ADMIN_PASSWORD)  # Ensure password updates if changed
+        db.commit()
+
+    print("✅ Admin account created/updated successfully.")
+    
+    # ✅ Reset the sequence correctly only if no insert failed
+    db.execute(text(f"SELECT setval('doctors_id_seq', (SELECT MAX(id) FROM doctors), false);"))
+    db.commit()
+
+# Create tables before initializing admin
+Base.metadata.create_all(bind=engine)
+
+# Ensure admin user exists
+with SessionLocal() as db:
+    create_admin(db)
+
+# Pydantic model for login requests
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+# Dependency to get DB session
+def get_db():
+    """Yield a database session, ensuring it's closed after use."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+"""
 def create_admin(db: Session):
     admin_username = "sajjad"
     admin = db.query(Doctor).filter(Doctor.username == admin_username).first()
@@ -307,11 +415,13 @@ def get_db():
         yield db
     finally:
         db.close()
-
+"""
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
-    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    #session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
     if not session:
         await websocket.close(code=1008)  # Invalid token, close connection
         return
@@ -549,6 +659,7 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
+
 @app.post("/login")
 async def login(
     login_request: LoginRequest, 
@@ -559,6 +670,7 @@ async def login(
 
     # Fetch doctor from the database
     doctor = db.query(Doctor).filter(Doctor.username == login_request.username).first()
+    
     
     if not doctor:
         print("No doctor found with that username.")
@@ -572,17 +684,19 @@ async def login(
 
     # Check if an active session already exists for the doctor
     existing_session = db.query(SessionModel).filter(SessionModel.doctor_id == doctor.id).first()
-
+    
     if existing_session:
         session_token = existing_session.session_token
         print(f"Existing session found for doctor {doctor.id}: {session_token}")
     else:
         # Generate a new session token
         session_token = str(uuid4())
+
         print(f"Generated new session token: {session_token}")
 
         # Store session in the database
         new_session = SessionModel(session_token=session_token, doctor_id=doctor.id)
+        
         db.add(new_session)
         db.commit()
         print("New session stored in the database.")
@@ -599,14 +713,15 @@ async def login(
     print("Session cookie set successfully.")
 
     return JSONResponse(
-        content={
-            "message": "Login successful",
-            "id": doctor.id,
-            "name": doctor.name,
-            "session_token": session_token  # Send session token for frontend use
-        },
-        status_code=200
-    )
+    content={
+        "message": "Login successful",
+        "id": doctor.id,  # Convert UUID to string
+        "name": doctor.name,
+        "session_token": str(session_token)
+    },
+    status_code=200
+)
+
 """
 @app.post("/login")
 async def login(login_request: LoginRequest, response: Response, db: Session = Depends(get_db)):
@@ -703,12 +818,114 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
 #         path="/"
 #     )
 #     return response
+
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
     max_id = db.query(func.max(Doctor.id)).scalar()
     next_id = 1 if max_id is None else max_id + 1
     return next_id
+"""
+@app.get("/get_next_doctor_id")
+def get_next_doctor_id(db: Session = Depends(get_db)):
+    max_id = db.query(func.max(Doctor.id)).scalar()
+    next_id = 1 if max_id is None else max_id + 1
+    return next_id
+"""
+@app.post("/add_doctor")
+def add_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
+    existing_doctor = db.query(Doctor).filter(Doctor.username == doctor.username).first()
+    if existing_doctor:
+        raise HTTPException(status_code=400, detail="Username already exists")
 
+    hashed_password = pwd_context.hash(doctor.password)
+
+    new_doctor = Doctor(
+        username=doctor.username,
+        password=hashed_password,
+        name=doctor.name,
+        specialization=doctor.specialization
+    )
+
+    db.add(new_doctor)
+    db.commit()  # ✅ PostgreSQL will auto-assign an ID here
+    db.refresh(new_doctor)  # ✅ Ensures new_doctor has the correct ID
+
+    return {"message": "Doctor added successfully", "id": new_doctor.id}
+
+@app.put("/edit_doctor/{doctor_id}")
+def update_doctor(doctor_id: int, doctor_data: DoctorUpdate, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    doctor.name = doctor_data.name
+    doctor.specialization = doctor_data.specialization
+    doctor.username = doctor_data.username
+
+    if doctor_data.password:
+        hashed_password = pwd_context.hash(doctor_data.password)
+        doctor.password = hashed_password
+    
+    db.commit()
+    db.refresh(doctor)
+
+    return {"message": "Doctor updated successfully", "doctor": doctor}
+
+
+@app.get("/view_doctors")
+def view_doctors(db: Session = Depends(get_db)):
+    doctors = db.query(Doctor).all()
+    if not doctors:
+        raise HTTPException(status_code=404, detail="No doctors found")
+    
+    return {"doctors": doctors}
+
+
+@app.get("/view_doctors/{doctor_id}", response_model=DoctorResponse)
+
+def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
+    print(f"Fetching doctor with ID: {doctor_id}")  # Debugging
+    
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    
+    if not doctor:
+        print("Doctor not found in database")  # Debugging
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    print(f"Doctor found: {doctor}")  # Debugging
+    return doctor
+
+@app.delete("/delete_doctor/{doctor_id}")
+def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    # Delete related session records if they exist
+    db.query(SessionModel).filter(SessionModel.doctor_id == doctor_id).delete()
+
+    db.delete(doctor)
+    db.commit()
+    return {"message": "Doctor deleted successfully"}
+
+
+@app.get("/get-doctor-id/{session_token}")
+def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    return {"doctor_id": session.doctor_id}
+
+@app.get("/doctors/{doctor_id}", response_model=DoctorResponse)
+def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    return doctor
+
+
+"""
 # Endpoint to get a doctor by ID
 @app.post("/add_doctor")
 def add_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
@@ -800,6 +1017,7 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
     if session and session.doctor_id:
         return {"doctor_id": session.doctor_id}
     return {"error": "Invalid session or doctor not found"}
+"""
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
