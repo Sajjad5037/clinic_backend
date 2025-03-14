@@ -331,7 +331,7 @@ def create_admin(db: Session):
             specialization="Administrator"
         )
         db.add(admin)
-        db.commit()  # Commit to assign admin.id
+        db.commit()  # ✅ Commit to assign admin.id
         db.refresh(admin)
 
     else:
@@ -339,21 +339,11 @@ def create_admin(db: Session):
         db.commit()
 
     print("✅ Admin account created/updated successfully.")
-
-    # ✅ Get the current max ID from doctors
-    max_id_result = db.execute(text("SELECT COALESCE(MAX(id), 1) FROM doctors"))
-    max_id = max_id_result.scalar()
-
-    # ✅ Reset the sequence to start exactly at max_id + 1
-    db.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, false);"))  
+    
+    # ✅ Reset the sequence correctly only if no insert failed
+    db.execute(text(f"SELECT setval('doctors_id_seq', (SELECT MAX(id) FROM doctors), false);"))
     db.commit()
 
-# Create tables before initializing admin
-Base.metadata.create_all(bind=engine)
-
-# Ensure admin user exists
-with SessionLocal() as db:
-    create_admin(db)
 # Create tables before initializing admin
 Base.metadata.create_all(bind=engine)
 
