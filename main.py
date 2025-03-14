@@ -314,17 +314,6 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
 # Initialize PostgreSQL database engine
 engine = create_engine(DATABASE_URL)  # Removed SQLite-specific arguments
 
-with engine.connect() as connection:
-    connection.execute(text("ALTER TABLE doctors ALTER COLUMN id SET DEFAULT nextval('doctors_id_seq');"))
-
-    # Get the max id from the doctors table (ensuring admin ID is counted)
-    max_id_result = connection.execute(text("SELECT COALESCE(MAX(id), 1) FROM doctors"))
-    max_id = max_id_result.scalar()
-
-    # Reset sequence to start at the highest existing ID
-    connection.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, false);"))
-
-    connection.commit()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Password hashing context
@@ -342,13 +331,29 @@ def create_admin(db: Session):
             specialization="Administrator"
         )
         db.add(admin)
+        db.commit()  # Commit to assign admin.id
+        db.refresh(admin)
+
     else:
         admin.password = pwd_context.hash(ADMIN_PASSWORD)  # Ensure password updates if changed
+        db.commit()
 
-    db.commit()
-    db.refresh(admin)
     print("✅ Admin account created/updated successfully.")
 
+    # ✅ Get the current max ID from doctors
+    max_id_result = db.execute(text("SELECT COALESCE(MAX(id), 1) FROM doctors"))
+    max_id = max_id_result.scalar()
+
+    # ✅ Reset the sequence to start exactly at max_id + 1
+    db.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, false);"))  
+    db.commit()
+
+# Create tables before initializing admin
+Base.metadata.create_all(bind=engine)
+
+# Ensure admin user exists
+with SessionLocal() as db:
+    create_admin(db)
 # Create tables before initializing admin
 Base.metadata.create_all(bind=engine)
 
