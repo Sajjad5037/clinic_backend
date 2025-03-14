@@ -923,7 +923,7 @@ def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
-@app.get("/get-doctor-name/{ID}")
+@app.get("/get-doctor-name/{doctor_id}")
 def get_doctor_name(doctor_id: int, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
