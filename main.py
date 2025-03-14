@@ -879,7 +879,8 @@ def view_doctors(db: Session = Depends(get_db)):
     return {"doctors": doctors}
 
 
-@app.get("/doctors/{doctor_id}", response_model=DoctorResponse)
+@app.get("/view_doctors/{doctor_id}", response_model=DoctorResponse)
+
 def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
     print(f"Fetching doctor with ID: {doctor_id}")  # Debugging
     
