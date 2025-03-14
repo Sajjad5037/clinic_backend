@@ -21,6 +21,9 @@ from uuid import uuid4
 from typing import Set
 from openai import OpenAI
 from sqlalchemy.orm import relationship
+from fastapi.responses import StreamingResponse
+import qrcode
+import io
 
 
 # Fetch the API key from environment variables
@@ -908,6 +911,24 @@ def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Doctor deleted successfully"}
 
+@app.get("/generate-qr/{public_token}/{session_token}")
+def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
+    # Validate session token (if needed)
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if not session:
+        return {"error": "Invalid session token"}
+    
+
+    # Generate shareable URL using the public token received from frontend
+    shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
+
+    # Generate QR Code
+    qr = qrcode.make(shareable_url)
+    img_io = io.BytesIO()
+    qr.save(img_io, format="PNG")
+    img_io.seek(0)
+
+    return StreamingResponse(img_io, media_type="image/png")
 
 @app.get("/get-doctor-id/{session_token}")
 def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
