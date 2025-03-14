@@ -21,7 +21,7 @@ from uuid import uuid4
 from typing import Set
 from openai import OpenAI
 from sqlalchemy.orm import relationship
-
+from sqlalchemy.exc import SQLAlchemyError
 
 # Fetch the API key from environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
@@ -826,12 +826,18 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
+    print("🔍 Attempting to fetch nextval('doctors_id_seq')...")  # ✅ Debugging print
+
     try:
-        # Try to get the last generated ID from the sequence
-        result = db.execute(text("SELECT currval('doctors_id_seq')")).scalar()
-    except Exception:
-        # If currval() fails, fallback to the max existing ID
-        result = db.execute(text("SELECT COALESCE(MAX(id), 1) FROM doctors")).scalar()
+        result = db.execute(text("SELECT nextval('doctors_id_seq')")).scalar()
+        print(f"✅ Successfully fetched nextval: {result}")  # ✅ Debugging print
+    except SQLAlchemyError as e:
+        print(f"❌ Error fetching nextval: {e}")  # ✅ Debugging print
+        print("🔄 Falling back to fetching max(id) + 1 from doctors table...")  # ✅ Debugging print
+
+        # Fallback method: Get MAX(id) + 1 in case sequence isn't working
+        result = db.execute(text("SELECT COALESCE(MAX(id), 1) + 1 FROM doctors")).scalar()
+        print(f"✅ Fallback value from doctors table: {result}")  # ✅ Debugging print
 
     return result
 """
