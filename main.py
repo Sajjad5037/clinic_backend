@@ -21,7 +21,7 @@ from uuid import uuid4
 from typing import Set
 from openai import OpenAI
 from sqlalchemy.orm import relationship
-from sqlalchemy.exc import SQLAlchemyError
+
 
 # Fetch the API key from environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
@@ -331,7 +331,7 @@ def create_admin(db: Session):
             specialization="Administrator"
         )
         db.add(admin)
-        db.commit()  # ✅ Commit first to get the correct admin.id
+        db.commit()  # ✅ Commit to assign admin.id
         db.refresh(admin)
 
     else:
@@ -339,16 +339,11 @@ def create_admin(db: Session):
         db.commit()
 
     print("✅ Admin account created/updated successfully.")
-
-    # ✅ Drop and recreate the sequence to start at 2
-    db.execute(text("DROP SEQUENCE IF EXISTS doctors_id_seq CASCADE;"))
-    db.execute(text("CREATE SEQUENCE doctors_id_seq START WITH 2 INCREMENT BY 1;"))
-    db.execute(text("ALTER TABLE doctors ALTER COLUMN id SET DEFAULT nextval('doctors_id_seq');"))
-
-    # ✅ Ensure the sequence starts correctly from MAX(id)
-    db.execute(text("SELECT setval('doctors_id_seq', COALESCE((SELECT MAX(id) FROM doctors), 1), false);"))
     
+    # ✅ Reset the sequence correctly only if no insert failed
+    db.execute(text(f"SELECT setval('doctors_id_seq', (SELECT MAX(id) FROM doctors), false);"))
     db.commit()
+
 # Create tables before initializing admin
 Base.metadata.create_all(bind=engine)
 
@@ -826,20 +821,9 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
-    print("🔍 Attempting to fetch nextval('doctors_id_seq')...")  # ✅ Debugging print
-
-    try:
-        result = db.execute(text("SELECT nextval('doctors_id_seq')")).scalar()
-        print(f"✅ Successfully fetched nextval: {result}")  # ✅ Debugging print
-    except SQLAlchemyError as e:
-        print(f"❌ Error fetching nextval: {e}")  # ✅ Debugging print
-        print("🔄 Falling back to fetching max(id) + 1 from doctors table...")  # ✅ Debugging print
-
-        # Fallback method: Get MAX(id) + 1 in case sequence isn't working
-        result = db.execute(text("SELECT COALESCE(MAX(id), 1) + 1 FROM doctors")).scalar()
-        print(f"✅ Fallback value from doctors table: {result}")  # ✅ Debugging print
-
-    return result
+    max_id = db.query(func.max(Doctor.id)).scalar()
+    next_id = 1 if max_id is None else max_id + 1
+    return next_id
 """
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
