@@ -821,7 +821,12 @@ async def logout(req: Request, logout_request: LogoutRequest = Body(...)):
 
 @app.get("/get_next_doctor_id")
 def get_next_doctor_id(db: Session = Depends(get_db)):
-    result = db.execute(text("SELECT nextval('doctors_id_seq')")).scalar()
+    result = db.execute(text("SELECT currval('doctors_id_seq')")).scalar()
+    
+    # If the sequence has not been used yet, manually get the max id
+    if result is None:
+        result = db.execute(text("SELECT COALESCE(MAX(id), 1) FROM doctors")).scalar()
+    
     return result
 """
 @app.get("/get_next_doctor_id")
