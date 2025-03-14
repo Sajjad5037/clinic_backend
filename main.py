@@ -329,7 +329,8 @@ with engine.connect() as connection:
     max_id = max_id_result.scalar()
 
     # Reset sequence to start from the highest existing id
-    connection.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, true);"))
+    connection.execute(text(f"SELECT setval('doctors_id_seq', {max_id}, false);"))
+
 
     connection.commit()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
