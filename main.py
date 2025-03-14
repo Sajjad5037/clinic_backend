@@ -915,6 +915,15 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
     return {"doctor_id": session.doctor_id}
+
+@app.get("/doctors/{doctor_id}", response_model=DoctorResponse)
+def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    return doctor
+
 """
 # Endpoint to get a doctor by ID
 @app.post("/add_doctor")
