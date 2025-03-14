@@ -319,7 +319,7 @@ with engine.connect() as connection:
     connection.execute(text("DROP SEQUENCE IF EXISTS doctors_id_seq CASCADE;"))
 
     # Create a new sequence
-    connection.execute(text("CREATE SEQUENCE doctors_id_seq START WITH 1 INCREMENT BY 1;"))
+    connection.execute(text("CREATE SEQUENCE doctors_id_seq START WITH 2 INCREMENT BY 1;"))
 
     # Ensure the 'id' column uses the new sequence
     connection.execute(text("ALTER TABLE doctors ALTER COLUMN id SET DEFAULT nextval('doctors_id_seq');"))
