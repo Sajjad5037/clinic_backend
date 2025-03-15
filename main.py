@@ -964,49 +964,77 @@ def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
 
 @app.get("/generate-qr/{public_token}/{session_token}")
 def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
-    # Validate session token (if needed)
+    print(f"Received request with public_token: {public_token}, session_token: {session_token}")
+
+    # Validate session token
     session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
     if not session:
+        print("Error: Invalid session token")
         return {"error": "Invalid session token"}
-    
 
-    # Generate shareable URL using the public token received from frontend
-        # Generate QR Code
+    print("Session token validated successfully.")
+
+    # Generate shareable URL
     shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
-    qr = qrcode.make(shareable_url)
+    print(f"Generated shareable URL: {shareable_url}")
 
-    # Resize QR code to 2x2 inches (600x600 pixels at 300 DPI)
-    qr = qr.resize((600, 600), Image.Resampling.LANCZOS)
+    # Generate QR Code
+    try:
+        qr = qrcode.make(shareable_url)
+        print("QR Code generated successfully.")
+    except Exception as e:
+        print(f"Error generating QR Code: {e}")
+        return {"error": "Failed to generate QR code"}
 
-    # Create a new image with space for text (e.g., 100px extra height)
-    text_height = 100
-    final_image = Image.new("RGB", (600, 700), "white")  # Extra 100 pixels height for text
-    final_image.paste(qr, (0, 0))  # Place QR at the top
+    # Resize QR code
+    try:
+        qr = qr.resize((600, 600), Image.Resampling.LANCZOS)
+        print("QR Code resized successfully.")
+    except Exception as e:
+        print(f"Error resizing QR Code: {e}")
+        return {"error": "Failed to resize QR code"}
+
+    # Create a new image with extra space for text
+    final_image = Image.new("RGB", (600, 700), "white")
+    final_image.paste(qr, (0, 0))
+    print("QR Code pasted onto final image.")
 
     # Add text below the QR code
     draw = ImageDraw.Draw(final_image)
 
-    # Load font (adjust font size as needed)
+    # Load font
     try:
-        font = ImageFont.truetype("arial.ttf", 40)  # Try Arial font (Windows)
+        font = ImageFont.truetype("arial.ttf", 40)
+        print("Loaded Arial font successfully.")
     except IOError:
-        font = ImageFont.load_default()  # Fallback for systems without Arial
+        font = ImageFont.load_default()
+        print("Failed to load Arial font. Using default font.")
 
     # Define text and position
     text = "Scan this for live updates:"
-    text_width, text_height = draw.textsize(text, font=font)
-    text_x = (600 - text_width) // 2  # Center text
+    text_bbox = draw.textbbox((0, 0), text, font=font)  # Get text bounding box
+    text_width = text_bbox[2] - text_bbox[0]  # Calculate width
+    text_x = (600 - text_width) // 2  # Center text horizontally
     text_y = 620  # Position below QR code
 
-    # Draw text on the image
-    draw.text((text_x, text_y), text, fill="black", font=font)
+    try:
+        draw.text((text_x, text_y), text, fill="black", font=font)
+        print("Text added to the image successfully.")
+    except Exception as e:
+        print(f"Error adding text: {e}")
+        return {"error": "Failed to add text to image"}
 
     # Save to a bytes buffer
-    img_io = io.BytesIO()
-    final_image.save(img_io, format="PNG")
-    img_io.seek(0)
+    try:
+        img_io = io.BytesIO()
+        final_image.save(img_io, format="PNG")
+        img_io.seek(0)
+        print("Final image saved to bytes buffer successfully.")
+    except Exception as e:
+        print(f"Error saving image: {e}")
+        return {"error": "Failed to save final image"}
 
-    # Now `img_io` contains the QR code image with text
+    print("Returning the QR code image as a response.")
     return StreamingResponse(img_io, media_type="image/png")
 
 @app.get("/get-doctor-id/{session_token}")
