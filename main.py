@@ -123,14 +123,14 @@ class DashboardState:
         if session_token not in self.sessions:
             # Create a new session if the token is not found
             self.sessions[session_token] = {
-                "doctor_name":None,
+                "doctor_name": None,
                 "patients": [],
                 "current_patient": None,
                 "inspection_times": [],
                 "start_time": None,
                 "average_inspection_time": 60,
-                "public_token": str(uuid.uuid4()),
-                "notices": [] 
+                
+                "notices": []
             }
 
         print(f"line 126: {self.sessions[session_token]}")
@@ -229,6 +229,7 @@ class SessionModel(Base):  # Handles authentication sessions
     session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
     is_authenticated = Column(Boolean, default=False)
+    public_token=Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
 
     doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
 
@@ -600,13 +601,22 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
     try:
         # Debug: Print the received tokens
         print(f"WebSocket connection attempt with session_token: {session_token}, public_token: {public_token}")
-        
-        # Retrieve session data using the session token
-        session_data = state.get_session(session_token)  
 
-        # Ensure the public token matches the one in session data
-        if session_data.get("public_token") != public_token:
-            print(f"Token mismatch: {public_token} != {session_data.get('public_token')}")
+        # Retrieve session from the database
+        session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
+        # Check if session exists
+        if not session:
+            print(f"Invalid session token: {session_token}")
+            await websocket.close(code=1008)  # Close connection if session doesn't exist
+            return
+
+        # Extract public token from session
+        db_public_token = session.public_token
+
+        # Ensure the public token matches the one provided in the request
+        if db_public_token != public_token:
+            print(f"Token mismatch: {public_token} != {db_public_token}")
             await websocket.close(code=1008)  # Policy violation: close connection
             return
         
@@ -629,7 +639,7 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
                 print(f"Received from client: {message}")
 
             except WebSocketDisconnect as e:
-                print(f"Client disconnected: Code {e.code}, Reason: {e.reason}")
+                print(f"Client disconnected: Code {e.code}")
                 break  
 
             except Exception as e:
@@ -641,6 +651,28 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
         await public_manager.disconnect(websocket, session_token)
         print(f"Client removed from public manager for session_token: {session_token}")
 
+# HTTP endpoint to get the public token (for the doctor to share)
+@app.get("/dashboard/public-token")
+def get_public_token(session_token: str = Query(...)):  # Required query param
+    print(f"Session Token Requested: {session_token}")
+
+    # Retrieve session from the database
+    session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
+    # Check if session exists
+    if not session:
+        print("Session Not Found")
+        return {"error": "Session not found", "sessionToken": session_token}
+
+    # Extract public token from session
+    public_token = session.public_token
+    print(f"Stored Public Token: {public_token}")
+
+    return {
+        "sessionToken": session_token,
+        "publicToken": public_token
+    }
+"""
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token(session_token: str = Query(...)):  # Required query param
@@ -658,7 +690,7 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
         "sessionToken": session_token,
         "publicToken": public_token
     }
-
+"""
 @app.get("/")
 def read_root():
     return {"message": "Python Backend Connected!"}
@@ -688,17 +720,20 @@ async def login(
     # Check if an active session already exists for the doctor
     existing_session = db.query(SessionModel).filter(SessionModel.doctor_id == doctor.id).first()
     
+    
     if existing_session:
         session_token = existing_session.session_token
+        public_token=existing_session.public_token
         print(f"Existing session found for doctor {doctor.id}: {session_token}")
     else:
         # Generate a new session token
         session_token = str(uuid4())
-
+        public_token= str(uuid4())
         print(f"Generated new session token: {session_token}")
+        print(f"Generated new public token: {public_token}")
 
         # Store session in the database
-        new_session = SessionModel(session_token=session_token, doctor_id=doctor.id)
+        new_session = SessionModel(session_token=session_token, doctor_id=doctor.id,public_token=public_token)
         
         db.add(new_session)
         db.commit()
@@ -720,7 +755,8 @@ async def login(
         "message": "Login successful",
         "id": doctor.id,  # Convert UUID to string
         "name": doctor.name,
-        "session_token": str(session_token)
+        "session_token": str(session_token),
+        "public_token": str(public_token)
     },
     status_code=200
 )
