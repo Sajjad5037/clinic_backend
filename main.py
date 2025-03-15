@@ -595,61 +595,74 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         print(error_message)
 
 
-
 @app.websocket("/ws/public/{session_token}/{public_token}")
-async def public_websocket_endpoint(websocket: WebSocket, session_token: str, public_token: str):
+async def public_websocket_endpoint(
+    websocket: WebSocket,
+    session_token: str,
+    public_token: str,
+    db: Session = Depends(get_db),
+):
     try:
-        # Debug: Print the received tokens
-        print(f"WebSocket connection attempt with session_token: {session_token}, public_token: {public_token}")
+        print(f"\n🔹 [DEBUG] New WebSocket connection attempt")
+        print(f"   - Received session_token: {session_token}")
+        print(f"   - Received public_token: {public_token}")
 
-        # Retrieve session from the database
-        session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+        # ✅ Convert session_token to UUID
+        try:
+            session_uuid = uuid.UUID(session_token)
+        except ValueError:
+            print(f"❌ Invalid session_token format: {session_token}")
+            await websocket.close(code=1008)  # Policy violation
+            return
 
-        # Check if session exists
+        # ✅ Retrieve session from database
+        session = db.query(SessionModel).filter(SessionModel.session_token == session_uuid).first()
+
         if not session:
-            print(f"Invalid session token: {session_token}")
+            print(f"❌ Invalid session_token: {session_token} (No matching session found in DB)")
             await websocket.close(code=1008)  # Close connection if session doesn't exist
             return
 
-        # Extract public token from session
-        db_public_token = session.public_token
+        # ✅ Convert db_public_token to string for comparison
+        db_public_token = str(session.public_token)
+        print(f"   - DB public_token: {db_public_token}")
 
-        # Ensure the public token matches the one provided in the request
+        # ✅ Check if the provided public_token matches the stored one
         if db_public_token != public_token:
-            print(f"Token mismatch: {public_token} != {db_public_token}")
+            print(f"❌ Token mismatch: {public_token} != {db_public_token} (Expected)")
             await websocket.close(code=1008)  # Policy violation: close connection
             return
-        
-        # Add WebSocket connection to the public manager
-        await public_manager.connect(websocket, session_token)
-        print(f"WebSocket connected for session_token: {session_token}")
 
-        # Send initial state to the client
+        # ✅ Add WebSocket connection to the public manager
+        await public_manager.connect(websocket, session_token)
+
+        # ✅ Send initial state to the client
         initial_state = {
             "type": "update_state",
-            "data": state.get_public_state(session_token)  # Use session_token for state retrieval
+            "data": state.get_public_state(session_token),  # Ensure `state` is properly defined
         }
-        print(f"Sending initial state to client: {initial_state}")
+        print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
         await websocket.send_text(json.dumps(initial_state))
 
-        # Keep listening for messages
+        # ✅ Listen for messages
         while True:
             try:
                 message = await websocket.receive_text()
-                print(f"Received from client: {message}")
+                print(f"📩 Received from client: {message}")
 
-            except WebSocketDisconnect as e:
-                print(f"Client disconnected: Code {e.code}")
+            except WebSocketDisconnect:
+                print(f"🔻 Client disconnected for session_token: {session_token}")
                 break  
 
             except Exception as e:
-                print(f"Error receiving message: {e}")
+                print(f"⚠️ Error receiving message: {e}")
 
     except Exception as e:
-        print(f"Unexpected WebSocket error: {e}")
+        print(f"⚠️ Unexpected WebSocket error: {e}")
+
     finally:
         await public_manager.disconnect(websocket, session_token)
-        print(f"Client removed from public manager for session_token: {session_token}")
+        print(f"🔻 Removed from WebSocket manager: session_token={session_token}\n")
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
