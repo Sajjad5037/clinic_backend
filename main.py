@@ -24,6 +24,7 @@ from sqlalchemy.orm import relationship
 from fastapi.responses import StreamingResponse
 import qrcode
 import io
+from PIL import Image
 
 
 # Fetch the API key from environment variables
@@ -973,6 +974,14 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
 
     # Generate QR Code
     qr = qrcode.make(shareable_url)
+
+    # Resize the QR code to 2x2 inches (600x600 pixels for 300 DPI)
+    desired_size = (600, 600)  
+
+    # Convert the QR code to an image and resize it
+    qr = qr.resize(desired_size, Image.Resampling.LANCZOS)
+
+    # Save to a bytes buffer
     img_io = io.BytesIO()
     qr.save(img_io, format="PNG")
     img_io.seek(0)
