@@ -986,36 +986,37 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
         print(f"Error generating QR Code: {e}")
         return {"error": "Failed to generate QR code"}
 
-    # Resize QR code
+    # Resize QR code to 4x4 inches (1200x1200 pixels at 300 DPI)
     try:
-        qr = qr.resize((600, 600), Image.Resampling.LANCZOS)
-        print("QR Code resized successfully.")
+        qr = qr.resize((1200, 1200), Image.Resampling.LANCZOS)
+        print("QR Code resized to 4x4 inches successfully.")
     except Exception as e:
         print(f"Error resizing QR Code: {e}")
         return {"error": "Failed to resize QR code"}
 
     # Create a new image with extra space for text
-    final_image = Image.new("RGB", (600, 700), "white")
+    text_height = 150  # Extra space for text
+    final_image = Image.new("RGB", (1200, 1350), "white")  # Extra 150 pixels height for text
     final_image.paste(qr, (0, 0))
     print("QR Code pasted onto final image.")
 
     # Add text below the QR code
     draw = ImageDraw.Draw(final_image)
 
-    # Load font
+    # Load font with larger size
     try:
-        font = ImageFont.truetype("arial.ttf", 40)
+        font = ImageFont.truetype("arial.ttf", 80)  # Larger font size
         print("Loaded Arial font successfully.")
     except IOError:
         font = ImageFont.load_default()
         print("Failed to load Arial font. Using default font.")
 
     # Define text and position
-    text = "Scan this for live updates:"
+    text = "Scan for Live Updates"
     text_bbox = draw.textbbox((0, 0), text, font=font)  # Get text bounding box
     text_width = text_bbox[2] - text_bbox[0]  # Calculate width
-    text_x = (600 - text_width) // 2  # Center text horizontally
-    text_y = 620  # Position below QR code
+    text_x = (1200 - text_width) // 2  # Center text horizontally
+    text_y = 1225  # Position below QR code
 
     try:
         draw.text((text_x, text_y), text, fill="black", font=font)
