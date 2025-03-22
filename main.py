@@ -1007,16 +1007,24 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
     
     # Try to load a robust TrueType font. Adjust the path if necessary.
     try:
-        # Attempt to load Arial
+        print(f"Attempting to load font from: {font_path}")  # Debugging line
+        if not os.path.exists(font_path):
+            print("Error: Font file not found!")  # Check if the file exists
+            raise FileNotFoundError(f"Font file not found at {font_path}")
         
         font = ImageFont.truetype(font_path, 100)
-        print("Loaded Arial font successfully at size 80.")
-    except IOError:
-       
-            # Fallback to DejaVuSans-Bold, which is often available on Linux systems
+        print("Loaded Arial font successfully at size 100.")
+    except Exception as e:
+        print(f"Error loading font: {e}")  # Print the actual error message
+
+        try:
+            print("Attempting to load DejaVuSans-Bold as fallback...")
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
+            print("Loaded DejaVuSans-Bold font successfully.")
+        except Exception as fallback_error:
+            print(f"Fallback font loading also failed: {fallback_error}")
             font = ImageFont.load_default()
-            print("Loaded DejaVuSans-Bold font successfully at size 80.")
-        
+            print("Using default font (this may be small).")    
             
     
     text = "Scan for Live Updates"
