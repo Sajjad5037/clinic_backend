@@ -980,7 +980,7 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
     
     # Generate QR Code
     try:
-        font_path = r"C:\Users\Admin\Desktop\font\arial.ttf"
+        font_path = os.path.join(os.path.dirname(__file__), "arial.ttf")
 
         qr = qrcode.make(shareable_url)
         print("QR Code generated successfully.")
