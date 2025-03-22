@@ -980,6 +980,8 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
     
     # Generate QR Code
     try:
+        font_path = r"C:\Users\Admin\Desktop\font\arial.ttf"
+
         qr = qrcode.make(shareable_url)
         print("QR Code generated successfully.")
     except Exception as e:
@@ -1006,16 +1008,16 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
     # Try to load a robust TrueType font. Adjust the path if necessary.
     try:
         # Attempt to load Arial
-        font = ImageFont.truetype("arial.ttf", 80)
+        
+        font = ImageFont.truetype(font_path, 100)
         print("Loaded Arial font successfully at size 80.")
     except IOError:
-        try:
+       
             # Fallback to DejaVuSans-Bold, which is often available on Linux systems
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", 80)
-            print("Loaded DejaVuSans-Bold font successfully at size 80.")
-        except IOError:
             font = ImageFont.load_default()
-            print("Failed to load TrueType fonts. Using default font (this may be small).")
+            print("Loaded DejaVuSans-Bold font successfully at size 80.")
+        
+            
     
     text = "Scan for Live Updates"
     # Calculate text dimensions using textbbox
