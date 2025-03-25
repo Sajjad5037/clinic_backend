@@ -246,7 +246,9 @@ class APIUsageModel(Base):  # Tracks API usage per doctor
     request_count = Column(Integer, default=1)
     date = Column(Date, default=func.current_date())
 
-    doctor = relationship("DoctorModel", back_populates="api_usage")
+    doctor = relationship("Doctor", back_populates="api_usage")
+
+    
 
 # Pydantic models for API validation
 class DoctorCreate(BaseModel):  # Used to create doctors
