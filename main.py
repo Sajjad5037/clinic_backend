@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uvicorn
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import SessionLocal
+
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
 import json
