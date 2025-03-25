@@ -8,6 +8,8 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uvicorn
 from passlib.context import CryptContext
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
 import json
@@ -27,6 +29,7 @@ import qrcode
 import io
 
 from PIL import Image, ImageDraw, ImageFont
+
 
 
 # Fetch the API key from environment variables
@@ -247,6 +250,16 @@ class APIUsageModel(Base):  # Tracks API usage per doctor
     date = Column(Date, default=func.current_date())
 
     doctor = relationship("Doctor", back_populates="api_usage")
+class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doctor
+    __tablename__ = "railway_resource_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
+    resource_type = Column(String(50), nullable=False)  # e.g., "database", "API requests"
+    usage_count = Column(Integer, default=1)  # Tracks number of times a resource is used
+    date = Column(Date, default=func.current_date())  # Logs daily usage
+
+    doctor = relationship("Doctor", back_populates="railway_usage")
 
     
 
@@ -437,6 +450,8 @@ def get_db():
     finally:
         db.close()
 """
+
+
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
@@ -489,8 +504,11 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             elif message["type"] == "add_patient":
                 session_token_current = message.get("session_token")                
                 patient_name = message.get("patient")
-                
+
+                # Add patient to the state
                 state.add_patient(session_token_current, patient_name)
+
+                # Prepare the update message
                 update = {
                     "type": "update_state",
                     "data": {
@@ -500,9 +518,23 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "session_token": session_token
                     }
                 }
+
+                # Broadcast updates
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
 
+                doctor_id = session.doctor_id
+                
+
+                if doctor_id:
+                    railway_usage_entry = RailwayResourceUsageModel(
+                    doctor_id=doctor_id,
+                    request_type="add_patient",
+                    request_count=1,  # Incrementing by 1 for this request
+                    date=func.current_date()
+                    ) 
+                session.add(railway_usage_entry)
+                await session.commit()
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
                 session_token_current = message.get("session_token") 
