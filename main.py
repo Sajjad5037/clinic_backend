@@ -541,7 +541,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         railway_usage_entry = db.query(RailwayResourceUsageModel).filter_by(doctor_id=doctor_id, date=today).first()
 
                         if railway_usage_entry:
-                            railway_usage_entry.request_count += 1  # Increment count
+                            railway_usage_entry.usage_count += 1  # Increment count
                         else:
                             railway_usage_entry = RailwayResourceUsageModel(
                                 doctor_id=doctor_id, 
