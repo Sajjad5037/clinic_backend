@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uvicorn
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from database import SessionLocal
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
 import json
@@ -525,30 +525,45 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 # Broadcast updates
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
+
                 # Log railway resource usage
                 today = func.current_date()
 
-                with SessionLocal() as db:  # Use correct session factory
-                    session_entry = db.query(SessionModel).filter_by(session_token=session_token_current).first()
+                try:
+                    with SessionLocal() as db:  # Use correct session factory
+                        print("Database session started.")  # Debugging print
+                        
+                        # Check session entry
+                        session_entry = db.query(SessionModel).filter_by(session_token=session_token_current).first()
+                        print(f"Session entry found: {session_entry}")  # Debugging print
+                        
+                        if session_entry:
+                            doctor_id = session_entry.doctor_id  # Ensure doctor_id exists
+                            print(f"Doctor ID: {doctor_id}")  # Debugging print
 
-                    if session_entry:
-                        doctor_id = session_entry.doctor_id  # Ensure doctor_id exists
+                            # Check railway usage entry
+                            railway_usage_entry = db.query(RailwayResourceUsageModel).filter_by(doctor_id=doctor_id, date=today).first()
+                            print(f"Existing railway usage entry: {railway_usage_entry}")  # Debugging print
 
-                        railway_usage_entry = db.query(RailwayResourceUsageModel).filter_by(doctor_id=doctor_id, date=today).first()
+                            if railway_usage_entry:
+                                railway_usage_entry.request_count += 1  # Increment count
+                                print(f"Updated request count: {railway_usage_entry.request_count}")  # Debugging print
+                            else:
+                                railway_usage_entry = RailwayResourceUsageModel(
+                                    doctor_id=doctor_id, 
+                                    request_type="add_patient", 
+                                    request_count=1, 
+                                    date=today
+                                )
+                                db.add(railway_usage_entry)
+                                print("New railway resource usage entry added.")  # Debugging print
 
-                        if railway_usage_entry:
-                            railway_usage_entry.request_count += 1  # Increment count
+                            db.commit()  # Save changes
+                            print("Database commit successful.")  # Debugging print
                         else:
-                            railway_usage_entry = RailwayResourceUsageModel(
-                                doctor_id=doctor_id, 
-                                request_type="add_patient", 
-                                request_count=1, 
-                                date=today
-                            )
-                            db.add(railway_usage_entry)
-
-                        db.commit()  # Save changes
-                
+                            print("No session entry found for given session token.")  # Debugging print
+                except Exception as e:
+                    print(f"Unexpected error: {e}")  # Debugging print for errors
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
                 session_token_current = message.get("session_token") 
