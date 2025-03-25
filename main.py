@@ -525,19 +525,30 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 # Broadcast updates
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)  # Update public clients
+                # Log railway resource usage
+                today = func.current_date()
 
-                doctor_id = session.doctor_id
+                with SessionLocal() as db:  # Use correct session factory
+                    session_entry = db.query(SessionModel).filter_by(session_token=session_token_current).first()
+
+                    if session_entry:
+                        doctor_id = session_entry.doctor_id  # Ensure doctor_id exists
+
+                        railway_usage_entry = db.query(RailwayResourceUsageModel).filter_by(doctor_id=doctor_id, date=today).first()
+
+                        if railway_usage_entry:
+                            railway_usage_entry.request_count += 1  # Increment count
+                        else:
+                            railway_usage_entry = RailwayResourceUsageModel(
+                                doctor_id=doctor_id, 
+                                request_type="add_patient", 
+                                request_count=1, 
+                                date=today
+                            )
+                            db.add(railway_usage_entry)
+
+                        db.commit()  # Save changes
                 
-
-                if doctor_id:
-                    railway_usage_entry = RailwayResourceUsageModel(
-                    doctor_id=doctor_id,
-                    resource_type="add_patient",
-                    usage_count=1,  # Incrementing by 1 for this request
-                    date=func.current_date()
-                    ) 
-                session.add(railway_usage_entry)
-                await session.commit()
             elif message["type"] == "reset_all":
                 print("Received reset_all message:", message)
                 session_token_current = message.get("session_token") 
