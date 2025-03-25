@@ -262,6 +262,7 @@ class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doct
     usage_count = Column(Integer, default=1)  # Tracks number of times a resource is used
     date = Column(Date, default=func.current_date())  # Logs daily usage
 
+
     doctor = relationship("Doctor", back_populates="railway_resource_usage")
 
     
@@ -544,8 +545,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         else:
                             railway_usage_entry = RailwayResourceUsageModel(
                                 doctor_id=doctor_id, 
-                                request_type="add_patient", 
-                                request_count=1, 
+                                resource_type="add_patient", 
+                                usage_count=1, 
                                 date=today
                             )
                             db.add(railway_usage_entry)
