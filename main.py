@@ -393,6 +393,7 @@ with SessionLocal() as db:
 class LoginRequest(BaseModel):
     username: str
     password: str
+    specialization:str
 
 # Dependency to get DB session
 def get_db():
@@ -836,6 +837,7 @@ async def login(
         "message": "Login successful",
         "id": doctor.id,  # Convert UUID to string
         "name": doctor.name,
+        "specialization":doctor.specialization,
         "session_token": str(session_token),
         "public_token": str(public_token)
     },
