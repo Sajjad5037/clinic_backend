@@ -225,6 +225,9 @@ class Doctor(Base):
     name = Column(String, nullable=False)
     specialization = Column(String, nullable=False)
     api_usage = relationship("APIUsageModel", back_populates="doctor")
+    # Relationship for railway resource usage (ensure the correct name!)
+    railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
+
 
     # Define relationship for cascading delete
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
@@ -259,7 +262,7 @@ class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doct
     usage_count = Column(Integer, default=1)  # Tracks number of times a resource is used
     date = Column(Date, default=func.current_date())  # Logs daily usage
 
-    doctor = relationship("Doctor", back_populates="railway_usage")
+    doctor = relationship("Doctor", back_populates="railway_resource_usage")
 
     
 
