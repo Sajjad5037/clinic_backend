@@ -533,7 +533,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     railway_usage_entry = RailwayResourceUsageModel(
                     doctor_id=doctor_id,
                     resource_type="add_patient",
-                    request_count=1,  # Incrementing by 1 for this request
+                    usage_count=1,  # Incrementing by 1 for this request
                     date=func.current_date()
                     ) 
                 session.add(railway_usage_entry)
