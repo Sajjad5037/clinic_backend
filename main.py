@@ -1,7 +1,8 @@
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import date
 from starlette.responses import JSONResponse
-from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text
+from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text,Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID
@@ -220,6 +221,7 @@ class Doctor(Base):
     password = Column(Text, nullable=False)  # Store hashed passwords efficiently
     name = Column(String, nullable=False)
     specialization = Column(String, nullable=False)
+    api_usage = relationship("APIUsageModel", back_populates="doctor")
 
     # Define relationship for cascading delete
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
@@ -234,6 +236,17 @@ class SessionModel(Base):  # Handles authentication sessions
     public_token=Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
 
     doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
+
+class APIUsageModel(Base):  # Tracks API usage per doctor
+    __tablename__ = "api_usage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
+    request_type = Column(String(50), nullable=False)  # e.g., "chatbot"
+    request_count = Column(Integer, default=1)
+    date = Column(Date, default=func.current_date())
+
+    doctor = relationship("DoctorModel", back_populates="api_usage")
 
 # Pydantic models for API validation
 class DoctorCreate(BaseModel):  # Used to create doctors
@@ -1145,7 +1158,7 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
     return {"error": "Invalid session or doctor not found"}
 """
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject DB session
     try:
         if not request.message:
             raise HTTPException(status_code=400, detail="Message is required")
@@ -1186,16 +1199,28 @@ async def chat(request: ChatRequest):
                 model="gpt-4o-mini",
                 messages=[system_message, user_message]
             )
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
         # Extract response
         bot_reply = chat_completion.choices[0].message.content
+
+        # Log API usage
+        today = date.today()
+        api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=today).first()
+
+        if api_usage_entry:
+            api_usage_entry.request_count += 1  # Increment count
+        else:
+            api_usage_entry = APIUsageModel(doctor_id=user_id, request_type="chatbot", request_count=1, date=today)
+            db.add(api_usage_entry)
+
+        db.commit()  # Save changes
+
         return {"reply": bot_reply}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 """
 # GET /patients - Fetch all patients
 @app.get("/patients", response_model=List[PatientResponse])
