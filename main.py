@@ -532,7 +532,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 if doctor_id:
                     railway_usage_entry = RailwayResourceUsageModel(
                     doctor_id=doctor_id,
-                    request_type="add_patient",
+                    resource_type="add_patient",
                     request_count=1,  # Incrementing by 1 for this request
                     date=func.current_date()
                     ) 
