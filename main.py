@@ -875,6 +875,22 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token_current, update)
+            elif message["type"] == "add_item":
+                print("Received add_item message:", message)
+                session_token_current = message.get("session_token")
+                # Add the item using the LiveUpdateState method
+                state.add_item(session_token_current, message.get("item", ""))
+                session_data = state.get_session(session_token_current)
+                update = {
+                    "type": "update_state",
+                    "data": {
+                        "preparingList": session_data["preparingList"],
+                        "servingList": session_data["servingList"],
+                        "notices": session_data["notices"],
+                        "session_token": session_token_current
+                    }
+                }
+                await manager.broadcast_to_session(session_token_current, update)
 
             
     except WebSocketDisconnect as e:
