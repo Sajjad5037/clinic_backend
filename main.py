@@ -891,6 +891,26 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token_current, update)
+                await public_manager.broadcast_to_session(session_token_current, update)
+            elif message["type"] == "mark_done":
+                session_token_current = message.get("session_token")
+                selected_index = message.get("index")
+
+                if selected_index is not None:
+                    OrderManager_state.mark_done(session_token_current, selected_index)
+
+                    update = {
+                        "type": "update_state",
+                        "data": {
+                            "preparingList": OrderManager_state.get_session(session_token_current)["preparingList"],
+                            "servingList": OrderManager_state.get_session(session_token_current)["servingList"],
+                            "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                            "session_token": session_token_current
+                        }
+                    }
+
+                    await manager.broadcast_to_session(session_token_current, update)      
+                    await public_manager.broadcast_to_session(session_token_current, update)     
 
             
     except WebSocketDisconnect as e:
