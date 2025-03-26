@@ -200,7 +200,66 @@ class DashboardState:
         if 0 <= index < len(session["notices"]):
             del session["notices"][index]
 
+class OrderManagerState:
+    def __init__(self):
+        self.sessions = {}  # Store session-specific state
+
+    def get_session(self, session_token):
+        if session_token not in self.sessions:
+            # Create a new session if the token is not found
+            self.sessions[session_token] = {
+                "preparingList": [],
+                "servingList": [],
+                "notices": []
+            }
+        return self.sessions[session_token]
+
+    def add_item(self, session_token, item: str):
+        """Adds a trimmed item to the preparing list if it's not empty."""
+        session = self.get_session(session_token)
+        trimmed_item = item.strip()
+        if trimmed_item:
+            session["preparingList"].append(trimmed_item)
+
+    def mark_done(self, session_token, selected_index: int):
+        """
+        Moves an item from the preparing list to the serving list using the provided index.
+        This is similar to handleDone in your JavaScript code.
+        """
+        session = self.get_session(session_token)
+        if selected_index is None or not (0 <= selected_index < len(session["preparingList"])):
+            return
+        
+        # Move the selected item from preparingList to servingList.
+        item = session["preparingList"].pop(selected_index)
+        session["servingList"].append(item)
+
+    def mark_served(self, session_token, selected_index: int):
+        """
+        Removes an item from the serving list using the provided index.
+        This is similar to handleServed in your JavaScript code.
+        """
+        session = self.get_session(session_token)
+        if selected_index is None or not (0 <= selected_index < len(session["servingList"])):
+            return
+        
+        session["servingList"].pop(selected_index)
+
+    def add_notice(self, session_token, notice: str):
+        """Adds a trimmed notice to the notice board if it's not empty."""
+        session = self.get_session(session_token)
+        trimmed_notice = notice.strip()
+        if trimmed_notice:
+            session["notices"].append(trimmed_notice)
+
+    def remove_notice(self, session_token, index: int):
+        """Removes a notice from the notice board by index."""
+        session = self.get_session(session_token)
+        if 0 <= index < len(session["notices"]):
+            session["notices"].pop(index)
+
 # Global state instance
+OrderManager_state=OrderManagerState()
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
 """
@@ -754,6 +813,82 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
         "sessionToken": session_token,
         "publicToken": public_token
     }
+
+
+@app.websocket("/ws/OrderManager/{session_token}")
+async def websocket_endpoint(websocket: WebSocket, session_token: str):
+    # Authenticate and verify session token
+    #session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
+    if not session:
+        await websocket.close(code=1008)  # Invalid token, close connection
+        return
+
+    # Ensure each session gets its own independent state
+    if session_token not in session_states:
+        session_states[session_token] = OrderManagerState()  # Create a new state for this session
+    OrderManager_state = session_states[session_token]  # Get the state for this session
+    session_data = OrderManager_state.get_session(session_token)  # Get the session data
+    # Add WebSocket connection to the manager based on session token
+    await manager.connect(websocket, session_token)
+
+    try:
+        # Send initial state to the new client
+        initial_state = {
+            "type": "update_state",
+            "data": {
+                "preparingList": session_data["preparingList"],
+                "servingList": session_data["servingList"],
+                "notices": session_data["notices"],
+                "session_token": session_token
+            }
+        }
+        await websocket.send_text(json.dumps(initial_state))
+
+        # Broadcast to public clients (if applicable)
+        if not session.is_authenticated:
+            await public_manager.broadcast_to_session(session_token, initial_state)
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            if message["type"] == "close_connection":
+                session_token_current = message.get("session_token") 
+
+                # Close the WebSocket connection
+                await websocket.close()
+                print("Connection closing")
+
+                # Safely remove WebSocket from active connections
+                await manager.disconnect(websocket, session_token_current)  
+                # Remove session state when closing
+                if session_token_current in session_states:
+                    del session_states[session_token_current]
+
+                # Broadcast update to notify clients about the connection closure
+                update = {
+                    "type": "connection_closed",
+                    "data": {
+                        "message": "WebSocket connection has been closed.",
+                        "session_token": session_token_current
+                    }
+                }
+                await manager.broadcast_to_session(session_token_current, update)
+
+            
+    except WebSocketDisconnect as e:
+        print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
+        await manager.disconnect(websocket, session_token)
+
+        # Remove session state after disconnect
+        if session_token in session_states:
+            del session_states[session_token]
+
+    except Exception as e:
+        error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
+        print(error_message)
+
 """
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
