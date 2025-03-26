@@ -995,65 +995,81 @@ async def public_websocket_endpoint(
     db: Session = Depends(get_db),
 ):
     try:
-        print(f"\n🔹 [DEBUG] New WebSocket connection attempt")
+        print("\n🔹 [DEBUG] New WebSocket connection attempt")
         print(f"   - Received session_token: {session_token}")
         print(f"   - Received public_token: {public_token}")
 
-        # ✅ Convert session_token to UUID
+        # ✅ Validate session_token as UUID
         try:
             session_uuid = uuid.UUID(session_token)
         except ValueError:
-            print(f"❌ Invalid session_token format: {session_token}")
+            print(f"❌ [ERROR] Invalid session_token format: {session_token}")
             await websocket.close(code=1008)  # Policy violation
             return
 
-        # ✅ Retrieve session from database
+        # ✅ Retrieve session from the database
         session = db.query(SessionModel).filter(SessionModel.session_token == session_uuid).first()
 
         if not session:
-            print(f"❌ Invalid session_token: {session_token} (No matching session found in DB)")
+            print(f"❌ [ERROR] No session found in DB for session_token: {session_token}")
             await websocket.close(code=1008)  # Close connection if session doesn't exist
             return
 
-        # ✅ Convert db_public_token to string for comparison
+        # ✅ Check if public_token matches
         db_public_token = str(session.public_token)
         print(f"   - DB public_token: {db_public_token}")
 
-        # ✅ Check if the provided public_token matches the stored one
         if db_public_token != public_token:
-            print(f"❌ Token mismatch: {public_token} != {db_public_token} (Expected)")
-            await websocket.close(code=1008)  # Policy violation: close connection
+            print(f"❌ [ERROR] Token mismatch: received {public_token}, expected {db_public_token}")
+            await websocket.close(code=1008)
             return
 
-        # ✅ Add WebSocket connection to the public manager
-        await public_manager.connect(websocket, session_token)
+        # ✅ Debug public_manager state before using it
+        if public_manager is None:
+            print("❌ [ERROR] public_manager is None!")
+            await websocket.close(code=1011)  # Internal Server Error
+            return
 
-        # ✅ Send initial state to the client
-        initial_state = {
-            "type": "update_state",
-            "data": OrderManager_state.get_public_state(session_token),  # Ensure `state` is properly defined
-        }
-        print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
-        await websocket.send_text(json.dumps(initial_state))
+        # ✅ Add WebSocket connection to the manager
+        print(f"🔹 Connecting WebSocket for session_token={session_token}...")
+        connection_result = await public_manager.connect(websocket, session_token)
+        print(f"✅ Connected to WebSocket Manager: {connection_result}")
 
-        # ✅ Listen for messages
+        # ✅ Fetch initial state safely
+        try:
+            initial_state = {
+                "type": "update_state",
+                "data": OrderManager_state.get_public_state(session_token),
+            }
+            print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
+            await websocket.send_text(json.dumps(initial_state))
+        except Exception as e:
+            print(f"⚠️ [ERROR] Could not fetch or send initial state: {e}")
+
+        # ✅ Listen for messages from the client
         while True:
             try:
                 message = await websocket.receive_text()
                 print(f"📩 Received from client: {message}")
 
-            except WebSocketDisconnect:
-                print(f"🔻 Client disconnected for session_token: {session_token}")
+            except WebSocketDisconnect as e:
+                print(f"🔻 [DISCONNECT] Client disconnected for session_token={session_token}, reason={e}")
                 break  
 
             except Exception as e:
-                print(f"⚠️ Error receiving message: {e}")
+                print(f"⚠️ [ERROR] Unexpected issue receiving message: {e}")
 
     except Exception as e:
-        print(f"⚠️ Unexpected WebSocket error: {e}")
+        print(f"⚠️ [ERROR] Unexpected WebSocket error: {e}")
 
     finally:
-        await public_manager.disconnect(websocket, session_token)
+        try:
+            print(f"🔹 Disconnecting WebSocket for session_token={session_token}...")
+            disconnect_result = await public_manager.disconnect(websocket, session_token)
+            print(f"✅ WebSocket disconnected: {disconnect_result}")
+        except Exception as e:
+            print(f"⚠️ [ERROR] Failed to disconnect WebSocket: {e}")
+
         print(f"🔻 Removed from WebSocket manager: session_token={session_token}\n")
 
 
