@@ -251,6 +251,14 @@ class OrderManagerState:
         trimmed_notice = notice.strip()
         if trimmed_notice:
             session["notices"].append(trimmed_notice)
+    
+    def get_public_state(self, session_token):
+        session = self.get_session(session_token)
+        return {
+            "preparingList": session["preparingList"],
+            "servingList": session["servingList"],
+            "notices": session["notices"]
+        }
 
     def remove_notice(self, session_token, index: int):
         """Removes a notice from the notice board by index."""
