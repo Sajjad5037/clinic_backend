@@ -912,6 +912,47 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
                     await manager.broadcast_to_session(session_token_current, update)      
                     await public_manager.broadcast_to_session(session_token_current, update) 
+            elif message["type"] == "add_notice":
+                session_token_current = message.get("session_token")
+                new_notice = message.get("notice")
+
+                if new_notice:
+                    OrderManager_state.add_notice(session_token_current, new_notice)
+                    print(OrderManager_state.get_session(session_token_current)["notices"])
+
+                    update = {
+                        "type": "update_state",
+                        "data": {
+                            "preparingList": OrderManager_state.get_session(session_token_current)["preparingList"],
+                            "servingList": OrderManager_state.get_session(session_token_current)["servingList"],
+                            "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                            "session_token": session_token_current
+                        }
+                    }
+
+                    await manager.broadcast_to_session(session_token_current, update)
+                    await public_manager.broadcast_to_session(session_token_current, update)
+            elif message["type"] == "remove_notice":
+                    session_token_current = message.get("session_token")
+                    notice_index = message.get("index")
+
+                    if notice_index is not None:
+                        OrderManager_state.remove_notice(session_token_current, notice_index)
+                        print(OrderManager_state.get_session(session_token_current)["notices"])
+
+                        update = {
+                            "type": "update_state",
+                            "data": {
+                                "preparingList": OrderManager_state.get_session(session_token_current)["preparingList"],
+                                "servingList": OrderManager_state.get_session(session_token_current)["servingList"],
+                                "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                                "session_token": session_token_current
+                            }
+                        }
+
+                        await manager.broadcast_to_session(session_token_current, update)
+                        await public_manager.broadcast_to_session(session_token_current, update)
+
             elif message["type"] == "mark_served":
                 session_token_current = message.get("session_token")
                 selected_index = message.get("index")
