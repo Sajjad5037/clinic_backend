@@ -891,7 +891,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
                 }
                 await manager.broadcast_to_session(session_token_current, update)
-                await public_manager.broadcast_to_session(session_token_current, update)
+                #await public_manager.broadcast_to_session(session_token_current, update)
             elif message["type"] == "mark_done":
                 session_token_current = message.get("session_token")
                 selected_index = message.get("index")
@@ -910,7 +910,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     }
 
                     await manager.broadcast_to_session(session_token_current, update)      
-                    await public_manager.broadcast_to_session(session_token_current, update)     
+                    #await public_manager.broadcast_to_session(session_token_current, update)     
 
             
     except WebSocketDisconnect as e:
