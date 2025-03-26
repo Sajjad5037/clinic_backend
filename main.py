@@ -879,7 +879,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 print("Received add_item message:", message)
                 session_token_current = message.get("session_token")
                 # Add the item using the LiveUpdateState method
-                state.add_item(session_token_current, message.get("item", ""))
+                OrderManager_state.add_item(session_token_current, message.get("item", ""))
                 session_data = state.get_session(session_token_current)
                 update = {
                     "type": "update_state",
