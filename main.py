@@ -27,6 +27,8 @@ from sqlalchemy.orm import relationship
 from fastapi.responses import StreamingResponse
 import qrcode
 import io
+from fastapi.websockets import WebSocketState
+
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -1121,7 +1123,7 @@ async def public_websocket_endpoint(
 
                     if session_token_current and item:
                         print(f"🛒 Received add_item_cart request: {json.dumps(data, indent=2)}")
-                        
+
                         # Add item to the order list
                         OrderManager_state.add_item_cart(session_token_current, item)
 
@@ -1133,15 +1135,17 @@ async def public_websocket_endpoint(
                                 "type": "add_item_cart",
                                 "data": {
                                     "orderList": session_data["orderList"],
-                                    
                                 }
                             }
-                            print(f"📤 Sending updated cart data: {json.dumps(update, indent=2)}")
-                            await websocket.send_text(json.dumps(update))
-                        else:
-                            print("⚠️ No session data found. Skipping update.")
-                    else:
-                        print("⚠️ Invalid add_item_cart request: Missing session_token or item.")
+
+                            print(f"📤 Preparing to send updated cart data: {json.dumps(update, indent=2)}")
+
+                            # Ensure the WebSocket connection is open before sending
+                            if websocket.client_state == WebSocketState.CONNECTED:
+                                await websocket.send_text(json.dumps(update))
+                            else:
+                                print("⚠️ WebSocket connection is not open. Skipping cart update.")
+
         except Exception as e:
             print(f"⚠️ [ERROR] Could not fetch or send initial state: {e}")
 
