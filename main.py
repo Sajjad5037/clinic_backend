@@ -1093,30 +1093,36 @@ async def public_websocket_endpoint(
                 data = json.loads(message)
 
                 if data.get("type") == "place_order":
-                    # Handle place_order case
-                    order_details = OrderManager_state.get_order_details(session_token)
-                    if order_details:
-                        order_data = {
-                            "type": "place_order",
-                            "data": order_details,
-                        }
-                        print(f"📤 Sending order data: {json.dumps(order_data, indent=2)}")
-                        await websocket.send_text(json.dumps(order_data))
+                    # Ensure WebSocket connection is open before proceeding
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        order_details = OrderManager_state.get_order_details(session_token)
+                        if order_details:
+                            order_data = {
+                                "type": "place_order",
+                                "data": order_details,
+                            }
+                            print(f"📤 Sending order data: {json.dumps(order_data, indent=2)}")
+                            await websocket.send_text(json.dumps(order_data))
+                        else:
+                            print("⚠️ No order details available. Skipping order placement.")
                     else:
-                        print("⚠️ No order details available. Skipping order placement.")
+                        print("⚠️ WebSocket connection is closed. Skipping order placement.")
 
                 elif data.get("type") == "update_state":
-                    # Handle update_state case
-                    public_state = OrderManager_state.get_public_state(session_token)
-                    if public_state:
-                        initial_state = {
-                            "type": "update_state",
-                            "data": public_state,
-                        }
-                        print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
-                        await websocket.send_text(json.dumps(initial_state))
+                    # Ensure WebSocket connection is open before proceeding
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        public_state = OrderManager_state.get_public_state(session_token)
+                        if public_state:
+                            initial_state = {
+                                "type": "update_state",
+                                "data": public_state,
+                            }
+                            print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
+                            await websocket.send_text(json.dumps(initial_state))
+                        else:
+                            print("⚠️ No valid public state available. Skipping initial state update.")
                     else:
-                        print("⚠️ No valid public state available. Skipping initial state update.")
+                        print("⚠️ WebSocket connection is closed. Skipping initial state update.")
                 elif data.get("type") == "add_item_cart":
                     session_token_current = data.get("session_token")
                     item = data.get("item")
