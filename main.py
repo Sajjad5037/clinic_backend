@@ -1031,6 +1031,8 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
+
+#wss://web-production-e5ae.up.railway.app/ws/public/OrderManager/7048cb59-54e8-45e5-8e2d-2549cf9ae863/3bdaba22-0c45-4fe0-bdb0-3c0e0ac0c604
 @app.websocket("/ws/public/OrderManager/{session_token}/{public_token}")
 async def public_websocket_endpoint(
     websocket: WebSocket,
