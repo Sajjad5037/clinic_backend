@@ -216,6 +216,17 @@ class OrderManagerState:
 
             }
         return self.sessions[session_token]
+    
+    def add_item_cart(self, session_token, item):
+        """ Adds an item to the orderList for the given session """
+        session = self.get_session(session_token)
+        
+        # Ensure item has required fields
+        if isinstance(item, dict) and "id" in item and "name" in item:
+            session["orderList"].append(item)
+            return {"success": True, "message": "Item added to cart"}
+        
+        return {"success": False, "message": "Invalid item format"}
 
     def get_order_details(self, session_token):
         """Fetch and format order details for WebSocket communication."""
@@ -922,6 +933,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                 }
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)
+            
             elif message["type"] == "mark_done":
                 session_token_current = message.get("session_token")
                 selected_index = message.get("index")
@@ -1103,6 +1115,33 @@ async def public_websocket_endpoint(
                         await websocket.send_text(json.dumps(initial_state))
                     else:
                         print("⚠️ No valid public state available. Skipping initial state update.")
+                elif data.get("type") == "add_item_cart":
+                    session_token_current = data.get("session_token")
+                    item = data.get("item")
+
+                    if session_token_current and item:
+                        print(f"🛒 Received add_item_cart request: {json.dumps(data, indent=2)}")
+                        
+                        # Add item to the order list
+                        OrderManager_state.add_item_cart(session_token_current, item)
+
+                        # Retrieve updated session data
+                        session_data = OrderManager_state.get_session(session_token_current)
+
+                        if session_data:
+                            update = {
+                                "type": "add_item_cart",
+                                "data": {
+                                    "orderList": session_data["orderList"],
+                                    
+                                }
+                            }
+                            print(f"📤 Sending updated cart data: {json.dumps(update, indent=2)}")
+                            await websocket.send_text(json.dumps(update))
+                        else:
+                            print("⚠️ No session data found. Skipping update.")
+                    else:
+                        print("⚠️ Invalid add_item_cart request: Missing session_token or item.")
         except Exception as e:
             print(f"⚠️ [ERROR] Could not fetch or send initial state: {e}")
 
