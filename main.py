@@ -208,11 +208,33 @@ class OrderManagerState:
         if session_token not in self.sessions:
             # Create a new session if the token is not found
             self.sessions[session_token] = {
+                "orderList":[],
                 "preparingList": [],
                 "servingList": [],
-                "notices": []
+                "notices": [],
+                "orders": []
+
             }
         return self.sessions[session_token]
+
+    def get_order_details(self, session_token):
+        """Fetch and format order details for WebSocket communication."""
+        session = self.get_session(session_token)
+
+        return {
+            
+            "orders": session["orders"],  # Include placed orders
+        }
+
+    def place_order(self, session_token, items):
+        """Handles the 'place_order' WebSocket message by storing the order."""
+        session = self.get_session(session_token)
+
+        if not items:
+            return {"error": "Order is empty"}
+
+        session["orders"].extend(items)  # Store the placed orders
+        return {"status": "Order placed", "orders": session["orders"]}
 
     def add_item(self, session_token, item: str):
         """Adds a trimmed item to the preparing list if it's not empty."""
@@ -1051,6 +1073,36 @@ async def public_websocket_endpoint(
             }
             print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
             await websocket.send_text(json.dumps(initial_state))
+            while True:
+                # Receive message from the client
+                message = await websocket.receive_text()
+                data = json.loads(message)
+
+                if data.get("type") == "place_order":
+                    # Handle place_order case
+                    order_details = OrderManager_state.get_order_details(session_token)
+                    if order_details:
+                        order_data = {
+                            "type": "place_order",
+                            "data": order_details,
+                        }
+                        print(f"📤 Sending order data: {json.dumps(order_data, indent=2)}")
+                        await websocket.send_text(json.dumps(order_data))
+                    else:
+                        print("⚠️ No order details available. Skipping order placement.")
+
+                elif data.get("type") == "update_state":
+                    # Handle update_state case
+                    public_state = OrderManager_state.get_public_state(session_token)
+                    if public_state:
+                        initial_state = {
+                            "type": "update_state",
+                            "data": public_state,
+                        }
+                        print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
+                        await websocket.send_text(json.dumps(initial_state))
+                    else:
+                        print("⚠️ No valid public state available. Skipping initial state update.")
         except Exception as e:
             print(f"⚠️ [ERROR] Could not fetch or send initial state: {e}")
 
