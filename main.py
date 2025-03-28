@@ -1052,7 +1052,7 @@ async def public_websocket_endpoint(
         print("\n🔹 [DEBUG] New WebSocket connection attempt")
         print(f"   - Received session_token: {session_token}")
         print(f"   - Received public_token: {public_token}")
-        await public_manager.connect(websocket, session_token)
+        
 
         # ✅ Validate session_token as UUID
         try:
