@@ -1152,7 +1152,7 @@ async def public_websocket_endpoint(
                             update = {
                                 "type": "add_item_cart",
                                 "data": {
-                                    "orderList": session_data["orders"],
+                                    "orderList": session_data.orders,
                                 }
                             }
 
