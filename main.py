@@ -1147,12 +1147,12 @@ async def public_websocket_endpoint(
 
                         # Retrieve updated session data
                         session_data = OrderManager_state.get_session(session_token_current)
-
+                        session["orders"].append(item)
                         if session_data:
                             update = {
                                 "type": "add_item_cart",
                                 "data": {
-                                    "orderList": session_data["orderList"],
+                                    "orderList": session_data["orders"],
                                 }
                             }
 
