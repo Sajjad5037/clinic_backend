@@ -1048,6 +1048,7 @@ async def public_websocket_endpoint(
     public_token: str,
     db: Session = Depends(get_db),
 ):
+    global manager, public_manager 
     try:
         print("\n🔹 [DEBUG] New WebSocket connection attempt")
         print(f"   - Received session_token: {session_token}")
@@ -1119,7 +1120,7 @@ async def public_websocket_endpoint(
                             }
                             print(f"📤 Sending order data: {json.dumps(order_data, indent=2)}")
                             await websocket.send_text(json.dumps(order_data))
-                            await manager.broadcast_to_session(session_token_current, update)
+                            
                             await public_manager.broadcast_to_session(session_token_current, update)
             
                         else:
