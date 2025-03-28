@@ -1715,6 +1715,11 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
                 "You are a virtual assistant for Mr. Zafar, a real estate owner "
                 "he has a lot of properties for sales and rent purposes in Defence phase 8"
             )
+        elif user_id == 15:
+            system_message_content = (
+                "You are a virtual assistant for Sir Younas, a teacher "
+                "He is an english teacher for Grade 7 and will be teaching using the official Oxford syllabus for English"
+            )
         else:
             system_message_content = (
                 "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
