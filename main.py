@@ -1094,6 +1094,11 @@ async def public_websocket_endpoint(
             print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
             await websocket.send_text(json.dumps(initial_state))
             while True:
+
+                if websocket.closed:
+                    print("WebSocket closed. Exiting loop.")
+                    break  # Exit loop to prevent calling receive_text() on a closed WebSocket
+
                 # Receive message from the client
                 message = await websocket.receive_text()
                 data = json.loads(message)
@@ -1164,6 +1169,10 @@ async def public_websocket_endpoint(
         # ✅ Listen for messages from the client
         while True:
             try:
+                if websocket.closed:
+                    print("WebSocket closed. Exiting loop.")
+                    break  # Exit loop to prevent calling receive_text() on a closed WebSocket
+
                 message = await websocket.receive_text()
                 print(f"📩 Received from client: {message}")
 
