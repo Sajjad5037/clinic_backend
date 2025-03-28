@@ -894,7 +894,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             await public_manager.broadcast_to_session(session_token, initial_state)
         while True:
             # Ensure the WebSocket is still open before receiving data
-            if websocket.client_state==websockets.protocol.State.CLOSED:
+            if websocket.client_state==WebSocketState.DISCONNECTED:
                 print("WebSocket closed. Exiting loop.")
                 break
             data = await websocket.receive_text()
@@ -1094,7 +1094,7 @@ async def public_websocket_endpoint(
             print(f"📤 Sending initial state: {json.dumps(initial_state, indent=2)}")
             await websocket.send_text(json.dumps(initial_state))
             while True:
-                if websocket.client_state==websockets.protocol.State.CLOSED:                
+                if websocket.client_state==WebSocketState.DISCONNECTED:                
                     print("WebSocket closed. Exiting loop.")
                     break  # Exit loop to prevent calling receive_text() on a closed WebSocket
 
@@ -1168,7 +1168,7 @@ async def public_websocket_endpoint(
         # ✅ Listen for messages from the client
         while True:
             try:
-                if websocket.client_state==websockets.protocol.State.CLOSED:
+                if websocket.client_state==WebSocketState.DISCONNECTED:
                     print("WebSocket closed. Exiting loop.")
                     break  # Exit loop to prevent calling receive_text() on a closed WebSocket
 
