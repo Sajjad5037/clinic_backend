@@ -225,7 +225,7 @@ class OrderManagerState:
         
         # Ensure item has required fields
         if isinstance(item, dict) and "id" in item and "name" in item:
-            session["orders"].append(item)
+            session["orderList"].append(item)
             return {"success": True, "message": "Item added to cart"}
         
         return {"success": False, "message": "Invalid item format"}
@@ -233,13 +233,11 @@ class OrderManagerState:
     def get_order_details(self, session_token):
         """Fetch and format order details for WebSocket communication."""
         session = self.get_session(session_token)
-        # Before returning, save everything from "orders" into "orderList"
-        
-        return {            
-            "orders": session["orders"],  # Include placed orders
-            
-        }
 
+        return {
+            
+            "orders": session["orders"],  # Include placed orders
+        }
 
     def place_order(self, session_token, items):
         """Handles the 'place_order' WebSocket message by storing the order."""
@@ -1147,12 +1145,12 @@ async def public_websocket_endpoint(
 
                         # Retrieve updated session data
                         session_data = OrderManager_state.get_session(session_token_current)
-                        session["orders"].append(item)
+
                         if session_data:
                             update = {
                                 "type": "add_item_cart",
                                 "data": {
-                                    "orderList": session_data.orders,
+                                    "orderList": session_data["orderList"],
                                 }
                             }
 
@@ -1170,7 +1168,7 @@ async def public_websocket_endpoint(
         # ✅ Listen for messages from the client
         while True:
             try:
-                if websocket.client_state==WebSocketState.DISCONNECTED:
+                if websocket.client_state==websockets.protocol.State.CLOSED:
                     print("WebSocket closed. Exiting loop.")
                     break  # Exit loop to prevent calling receive_text() on a closed WebSocket
 
