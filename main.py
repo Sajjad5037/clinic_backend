@@ -767,6 +767,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         # Remove session state after disconnect
         if session_token in session_states:
             del session_states[session_token]
+        
 
     except Exception as e:
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
@@ -1699,10 +1700,15 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
                 "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
                 "He did his Masters from America. He charges Rs.5000 per inspection."
             )
-        elif user_id == 3:
+        elif user_id == 13:
             system_message_content = (
-                "You are a virtual assistant for Chand, a hairstylist. "
-                "He charges Rs.500 for a haircut and 1000 for a full body massage."
+                "You are a virtual assistant for Tahira, a gynacologist. "
+                "He charges Rs.3000 per inspection and her operation charges are Rs.100000."
+            )
+        elif user_id == 13:
+            system_message_content = (
+                "You are a virtual assistant for Spice Bazar, a restaurant. "
+                "The restaurant is known for its chinese dishes. if someone asks for some dish that is spicy then tell them about Chilli french fries."
             )
         else:
             system_message_content = (
