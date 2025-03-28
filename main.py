@@ -1052,6 +1052,7 @@ async def public_websocket_endpoint(
         print("\n🔹 [DEBUG] New WebSocket connection attempt")
         print(f"   - Received session_token: {session_token}")
         print(f"   - Received public_token: {public_token}")
+        await public_manager.connect(websocket, session_token)
 
         # ✅ Validate session_token as UUID
         try:
@@ -1109,7 +1110,7 @@ async def public_websocket_endpoint(
                 if data.get("type") == "place_order":
                     # Ensure WebSocket connection is open before proceeding
                     if websocket.client_state == WebSocketState.CONNECTED:
-                        
+                        session_token_current = data.get("session_token")
                         order_details = OrderManager_state.get_order_details(session_token)
                         if order_details:
                             order_data = {
@@ -1118,6 +1119,9 @@ async def public_websocket_endpoint(
                             }
                             print(f"📤 Sending order data: {json.dumps(order_data, indent=2)}")
                             await websocket.send_text(json.dumps(order_data))
+                            await manager.broadcast_to_session(session_token_current, update)
+                            await public_manager.broadcast_to_session(session_token_current, update)
+            
                         else:
                             print("⚠️ No order details available. Skipping order placement.")
                     else:
