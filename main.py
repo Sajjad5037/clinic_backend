@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 import websockets
 from typing import List,Dict,Set,Optional
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query, UploadFile,File
 import json
 import time
 import uuid  # For generating unique tokens
@@ -28,9 +28,9 @@ from fastapi.responses import StreamingResponse
 import qrcode
 import io
 from fastapi.websockets import WebSocketState
-
-
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw, ImageFont
+import shutil
 
 
 
@@ -51,10 +51,21 @@ secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
 
 
 app = FastAPI()
+# Directory to store PDFs
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Serve files in uploads directory
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 session_states = {}
 clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+class PDFFile(Base):
+    __tablename__ = "pdfs"
+    id = Column(Integer, primary_key=True, index=True)
+    pdf_url = Column(String, unique=True)
 
 class ChatRequest(BaseModel):
     message: str
@@ -562,6 +573,29 @@ def get_db():
         db.close()
 """
 
+# 📌 **1️⃣ Upload PDF**
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    file_location = os.path.join(UPLOAD_DIR, file.filename)
+
+    # Save the file
+    with open(file_location, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Generate file URL
+    file_url = f"http://your-backend-url.com/uploads/{file.filename}"
+
+    # Save URL in the database
+    db_pdf = PDFFile(pdf_url=file_url)
+    db.add(db_pdf)
+    db.commit()
+
+    return {"pdf_url": file_url}
+
+@app.get("/pdfs")
+def get_pdfs(db: Session = Depends(get_db)):  # ✅ Use `Session` instead of `SessionLocal`
+    pdfs = db.query(PDFFile).all()
+    return [{"pdf_url": pdf.pdf_url} for pdf in pdfs]
 
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
