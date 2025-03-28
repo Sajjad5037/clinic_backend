@@ -1710,6 +1710,11 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
                 "You are a virtual assistant for Spice Bazar, a restaurant. "
                 "The restaurant is known for its chinese dishes. if someone asks for some dish that is spicy then tell them about Chilli french fries."
             )
+        elif user_id == 14:
+            system_message_content = (
+                "You are a virtual assistant for Mr. Zafar, a real estate owner "
+                "he has a lot of properties for sales and rent purposes in Defence phase 8"
+            )
         else:
             system_message_content = (
                 "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
