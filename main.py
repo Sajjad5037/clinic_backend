@@ -1700,7 +1700,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
                 "You are a virtual assistant for Dr. Sarfraz, a specialist in Neurology. "
                 "He did his Masters from America. He charges Rs.5000 per inspection."
             )
-        elif user_id == 13:
+        elif user_id == 12:
             system_message_content = (
                 "You are a virtual assistant for Tahira, a gynacologist. "
                 "He charges Rs.3000 per inspection and her operation charges are Rs.100000."
