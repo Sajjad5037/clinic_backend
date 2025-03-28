@@ -583,7 +583,7 @@ async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)
         shutil.copyfileobj(file.file, buffer)
 
     # Generate file URL
-    file_url = f"http://your-backend-url.com/uploads/{file.filename}"
+    file_url = f"https://clinic-management-system-27d11.web.app/uploads/{file.filename}"
 
     # Save URL in the database
     db_pdf = PDFFile(pdf_url=file_url)
