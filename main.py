@@ -225,7 +225,7 @@ class OrderManagerState:
         
         # Ensure item has required fields
         if isinstance(item, dict) and "id" in item and "name" in item:
-            session["orderList"].append(item)
+            session["orders"].append(item)
             return {"success": True, "message": "Item added to cart"}
         
         return {"success": False, "message": "Invalid item format"}
@@ -233,11 +233,13 @@ class OrderManagerState:
     def get_order_details(self, session_token):
         """Fetch and format order details for WebSocket communication."""
         session = self.get_session(session_token)
-
-        return {
-            
+        # Before returning, save everything from "orders" into "orderList"
+        
+        return {            
             "orders": session["orders"],  # Include placed orders
+            
         }
+
 
     def place_order(self, session_token, items):
         """Handles the 'place_order' WebSocket message by storing the order."""
