@@ -893,6 +893,10 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         if not session.is_authenticated:
             await public_manager.broadcast_to_session(session_token, initial_state)
         while True:
+            # Ensure the WebSocket is still open before receiving data
+            if websocket.closed:
+                print("WebSocket closed. Exiting loop.")
+                break
             data = await websocket.receive_text()
             message = json.loads(data)
             
