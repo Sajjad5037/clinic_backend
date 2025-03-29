@@ -84,7 +84,7 @@ class ConnectionManager:
         self.active_connections.add(websocket)
         self.client_tokens[websocket] = session_token  # Add session token to this connection
         print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
-    def disconnect(self, websocket: WebSocket, session_token: str):
+    async def disconnect(self, websocket: WebSocket, session_token: str):
         # Remove the WebSocket from the session-specific connection set
         if session_token in self.active_connections:
             self.active_connections[session_token].discard(websocket)
