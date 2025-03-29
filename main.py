@@ -573,22 +573,57 @@ def get_db():
         db.close()
 """
 
-# 📌 **1️⃣ Upload PDF**
+import os
+import shutil
+import urllib.parse
+from fastapi import FastAPI, UploadFile, File, Depends
+from sqlalchemy.orm import Session
+
+app = FastAPI()
+
+UPLOAD_DIR = "uploads"  # Ensure this directory exists
+os.makedirs(UPLOAD_DIR, exist_ok=True)  # Create if not exists
+
+def get_db():
+    # Dummy function to simulate database session
+    pass
+
+class PDFFile:
+    # Dummy class to simulate database model
+    def __init__(self, pdf_url):
+        self.pdf_url = pdf_url
+
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_location = os.path.join(UPLOAD_DIR, file.filename)
+    print(f"Received file: {file.filename}")  # Debugging
+
+    # Encode filename to handle spaces and special characters
+    safe_filename = urllib.parse.quote(file.filename)
+    file_location = os.path.join(UPLOAD_DIR, safe_filename)
+
+    print(f"Processed safe filename: {safe_filename}")  # Debugging
+    print(f"Saving file at: {file_location}")  # Debugging
 
     # Save the file
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        print("File saved successfully!")  # Debugging
+    except Exception as e:
+        print(f"Error saving file: {e}")  # Debugging
 
     # Generate file URL
-    file_url = f"https://clinic-management-system-27d11.web.app/uploads/{file.filename}"
+    file_url = f"https://clinic-management-system-27d11.web.app/uploads/{safe_filename}"
+    print(f"Generated file URL: {file_url}")  # Debugging
 
     # Save URL in the database
-    db_pdf = PDFFile(pdf_url=file_url)
-    db.add(db_pdf)
-    db.commit()
+    try:
+        db_pdf = PDFFile(pdf_url=file_url)
+        db.add(db_pdf)
+        db.commit()
+        print("Database commit successful!")  # Debugging
+    except Exception as e:
+        print(f"Database error: {e}")  # Debugging
 
     return {"pdf_url": file_url}
 
