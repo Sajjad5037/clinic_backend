@@ -1099,7 +1099,11 @@ async def public_websocket_endpoint(
                     #here
                     # ✅ Fetch the latest notices
                     
-                    latest_notices = OrderManager_state.get_session(session_token_current)["notices"]
+                    session_data = OrderManager_state.get_session(session_token_current)
+                    print(f"🔍 [DEBUG] Retrieved session data: {session_data}")
+
+                    latest_notices = session_data["notices"]
+                    print(f"📢 [DEBUG] Sending notices: {latest_notices}")
 
 
                     response = {
