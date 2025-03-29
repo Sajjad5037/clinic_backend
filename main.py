@@ -1095,6 +1095,7 @@ async def public_websocket_endpoint(
                 # ✅ Handle request for initial state
                 if message["type"] == "request_initial_state":
                     session_token_current = message.get("session_token")
+                    print(session_token_current)
                     #here
                     # ✅ Fetch the latest notices
                     
