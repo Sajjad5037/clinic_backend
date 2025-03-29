@@ -1073,6 +1073,7 @@ async def public_websocket_endpoint(
         connection_result = await public_manager.connect(websocket, session_token)
         print(f"✅ Connected to WebSocket Manager: {connection_result}")
         await asyncio.sleep(0.5)
+        print("waiting a bit before sending the initial state")
         # ✅ Fetch initial state safely
         try:
             initial_state = {
