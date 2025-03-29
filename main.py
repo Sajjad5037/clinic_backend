@@ -1090,6 +1090,25 @@ async def public_websocket_endpoint(
             try:
                 message = await websocket.receive_text()
                 print(f"📩 Received from client: {message}")
+                message = json.loads(message)  # Parse JSON message
+
+                # ✅ Handle request for initial state
+                if message["type"] == "request_initial_state":
+                    session_token_current = message.get("session_token")
+
+                    # ✅ Fetch the latest notices
+                    latest_notices = OrderManager_state.get_session(session_token_current).get("notices", [])
+
+                    response = {
+                        "type": "update_state",
+                        "data": {
+                            "notices": latest_notices,  # Send only notices
+                            "session_token": session_token_current
+                        }
+                    }
+
+                    print(f"📤 Sending latest notices: {latest_notices}")
+                    await websocket.send_text(json.dumps(response))  # Send response to client
 
             except WebSocketDisconnect as e:
                 print(f"🔻 [DISCONNECT] Client disconnected for session_token={session_token}, reason={e}")
