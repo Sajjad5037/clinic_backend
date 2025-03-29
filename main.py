@@ -272,10 +272,44 @@ class OrderManagerState:
         if 0 <= index < len(session["notices"]):
             session["notices"].pop(index)
 
+class SchoolState:
+    def __init__(self):
+        self.sessions = {}  # Store session-specific state
+
+    def get_session(self, session_token):
+        if session_token not in self.sessions:
+            # Create a new session if the token is not found
+            self.sessions[session_token] = { 
+                "notices": []
+            }
+        return self.sessions[session_token]
+
+    
+    def add_notice(self, session_token, notice: str):
+        """Adds a trimmed notice to the notice board if it's not empty."""
+        session = self.get_session(session_token)
+        trimmed_notice = notice.strip()
+        if trimmed_notice:
+            session["notices"].append(trimmed_notice)
+    
+    def get_public_state(self, session_token):
+        session = self.get_session(session_token)
+        return {            
+            "notices": session["notices"]
+        }
+
+    def remove_notice(self, session_token, index: int):
+        """Removes a notice from the notice board by index."""
+        session = self.get_session(session_token)
+        if 0 <= index < len(session["notices"]):
+            session["notices"].pop(index)
+
+
 # Global state instance
 OrderManager_state=OrderManagerState()
 state = DashboardState()
 public_manager = ConnectionManager() # Add a separate manager for public connections
+School_state=SchoolState()
 """
 class Patient(Base): #base is the object that contains the meta data of the database models. this helps map the class to a table in the database
     __tablename__ = "patients"
@@ -1012,6 +1046,115 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                     await manager.broadcast_to_session(session_token_current, update)
                     await public_manager.broadcast_to_session(session_token_current, update)
 
+            
+    except WebSocketDisconnect as e:
+        print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
+        await manager.disconnect(websocket, session_token)
+
+        # Remove session state after disconnect
+        if session_token in session_states:
+            del session_states[session_token]
+
+    except Exception as e:
+        error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
+        print(error_message)
+@app.websocket("/ws/School/{session_token}")
+async def websocket_endpoint(websocket: WebSocket, session_token: str):
+    # Authenticate and verify session token
+    #session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
+    if not session:
+        await websocket.close(code=1008)  # Invalid token, close connection
+        return
+
+    # Ensure each session gets its own independent state
+    #here
+    if session_token not in session_states:
+        session_states[session_token] = OrderManagerState()  # Create a new state for this session
+    School_state = session_states[session_token]  # Get the state for this session
+    session_data = School_state.get_session(session_token)  # Get the session data
+    # Add WebSocket connection to the manager based on session token
+    await manager.connect(websocket, session_token)
+
+    try:
+        # Send initial state to the new client
+        initial_state = {
+            "type": "update_state",
+            "data": {                
+                "notices": session_data["notices"]
+                }
+        }
+        await websocket.send_text(json.dumps(initial_state))
+
+        # Broadcast to public clients (if applicable)
+        if not session.is_authenticated:
+            await public_manager.broadcast_to_session(session_token, initial_state)
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            if message["type"] == "close_connection":
+                session_token_current = message.get("session_token") 
+
+                # Close the WebSocket connection
+                await websocket.close()
+                print("Connection closing")
+
+                # Safely remove WebSocket from active connections
+                await manager.disconnect(websocket, session_token_current)  
+                # Remove session state when closing
+                if session_token_current in session_states:
+                    del session_states[session_token_current]
+
+                # Broadcast update to notify clients about the connection closure
+                update = {
+                    "type": "connection_closed",
+                    "data": {
+                        "message": "WebSocket connection has been closed.",
+                        "session_token": session_token_current
+                    }
+                }
+                await manager.broadcast_to_session(session_token_current, update)
+            
+            elif message["type"] == "add_notice":
+                session_token_current = message.get("session_token")
+                new_notice = message.get("notice")
+
+                if new_notice:
+                    OrderManager_state.add_notice(session_token_current, new_notice)
+                    print(OrderManager_state.get_session(session_token_current)["notices"])
+
+                    update = {
+                        "type": "update_state",
+                        "data": {
+                            "preparingList": OrderManager_state.get_session(session_token_current)["preparingList"],
+                            "servingList": OrderManager_state.get_session(session_token_current)["servingList"],
+                            "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                            "session_token": session_token_current
+                        }
+                    }
+
+                    await manager.broadcast_to_session(session_token_current, update)
+                    await public_manager.broadcast_to_session(session_token_current, update)
+            elif message["type"] == "remove_notice":
+                    session_token_current = message.get("session_token")
+                    notice_index = message.get("index")
+
+                    if notice_index is not None:
+                        OrderManager_state.remove_notice(session_token_current, notice_index)
+                        print(OrderManager_state.get_session(session_token_current)["notices"])
+                        update = {
+                            "type": "update_state",
+                            "data": {
+                                "preparingList": OrderManager_state.get_session(session_token_current)["preparingList"],
+                                "servingList": OrderManager_state.get_session(session_token_current)["servingList"],
+                                "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                                "session_token": session_token_current
+                            }
+                        }
+                        await manager.broadcast_to_session(session_token_current, update)
+                        await public_manager.broadcast_to_session(session_token_current, update)           
             
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
