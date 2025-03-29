@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uvicorn
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-
+import asyncio
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query,UploadFile,File
 import json
@@ -797,7 +797,8 @@ async def public_websocket_endpoint(
             print(f"❌ Token mismatch: {public_token} != {db_public_token} (Expected)")
             await websocket.close(code=1008)  # Policy violation: close connection
             return
-
+        # ✅ Add a small delay before sending the initial state
+        await asyncio.sleep(0.5)  # Adjust delay if needed
         # ✅ Add WebSocket connection to the public manager
         await public_manager.connect(websocket, session_token)
 
@@ -1071,7 +1072,7 @@ async def public_websocket_endpoint(
         print(f"🔹 Connecting WebSocket for session_token={session_token}...")
         connection_result = await public_manager.connect(websocket, session_token)
         print(f"✅ Connected to WebSocket Manager: {connection_result}")
-
+        await asyncio.sleep(0.5)
         # ✅ Fetch initial state safely
         try:
             initial_state = {
