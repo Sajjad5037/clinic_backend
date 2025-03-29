@@ -1024,7 +1024,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except Exception as e:
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
-
+"""
 @app.websocket("/ws/public/OrderManager/{session_token}/{public_token}")
 async def public_websocket_endpoint(
     websocket: WebSocket,
@@ -1090,32 +1090,7 @@ async def public_websocket_endpoint(
             try:
                 message = await websocket.receive_text()
                 print(f"📩 Received from client: {message}")
-                message = json.loads(message)  # Parse JSON message
-
-                # ✅ Handle request for initial state
-                if message["type"] == "request_initial_state":
-                    session_token_current = message.get("session_token")
-                    print(session_token_current)
-                    #here
-                    # ✅ Fetch the latest notices
-                    
-                    session_data = OrderManager_state.get_session(session_token_current)
-                    print(f"🔍 [DEBUG] Retrieved session data: {session_data}")
-
-                    latest_notices = session_data["notices"]
-                    print(f"📢 [DEBUG] Sending notices: {latest_notices}")
-
-
-                    response = {
-                        "type": "update_state",
-                        "data": {
-                            "notices": latest_notices,  # Send only notices
-                            "session_token": session_token_current
-                        }
-                    }
-
-                    print(f"📤 Sending latest notices: {latest_notices}")
-                    await websocket.send_text(json.dumps(response))  # Send response to client
+                
 
             except WebSocketDisconnect as e:
                 print(f"🔻 [DISCONNECT] Client disconnected for session_token={session_token}, reason={e}")
@@ -1137,7 +1112,7 @@ async def public_websocket_endpoint(
 
         print(f"🔻 Removed from WebSocket manager: session_token={session_token}\n")
 
-
+"""
 """
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
