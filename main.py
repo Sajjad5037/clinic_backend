@@ -1164,7 +1164,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         "type": "update_state",
                         "data": {
                             
-                            "notices": OrderManager_state.get_session(session_token_current)["notices"],
+                            "notices": School_state.get_session(session_token_current)["notices"],
                             "session_token": session_token_current
                         }
                     }
