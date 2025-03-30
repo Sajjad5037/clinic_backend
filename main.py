@@ -1158,7 +1158,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
                 if new_notice:
                     School_state.add_notice(session_token_current, new_notice)
-                    print(School_state).get_session(session_token_current)(["notices"])
+                    
 
                     update = {
                         "type": "update_state",
