@@ -1192,7 +1192,51 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                             }
                         }
                         await manager.broadcast_to_session(session_token_current, update)
-                        await public_manager.broadcast_to_session(session_token_current, update)         
+                        await public_manager.broadcast_to_session(session_token_current, update)    
+            elif message["type"] == "restore_notice":
+                session_token_current = message.get("session_token")
+
+                if session:  # Ensure session is valid
+                    try:
+                        # Fetch the saved notices from the database
+                        notice_entry = db.query(NoticesModel).filter(NoticesModel.session_token == session_token_current).first()
+
+                        if notice_entry:
+                            restored_notices = notice_entry.notices  # Retrieve saved notices
+                        else:
+                            restored_notices = []  # No notices found, return empty list
+
+                        # Send the restored notices back to the frontend
+                        response = {
+                            "type": "notices_restored",
+                            "data": {
+                                "message": "Notices successfully restored",
+                                "notices": restored_notices,
+                                "session_token": session_token_current
+                            }
+                        }
+                        await websocket.send_text(json.dumps(response))
+
+                    except Exception as e:
+                        error_response = {
+                            "type": "error",
+                            "data": {
+                                "message": "Failed to restore notices.",
+                                "error": str(e),
+                                "session_token": session_token_current
+                            }
+                        }
+                        await websocket.send_text(json.dumps(error_response))
+                else:
+                    # Send an error response if session is invalid
+                    error_response = {
+                        "type": "error",
+                        "data": {
+                            "message": "Invalid session. Cannot restore notices.",
+                            "session_token": session_token_current
+                        }
+                    }
+                    await websocket.send_text(json.dumps(error_response))     
             elif message["type"] == "save_notice":
                 session_token_current = message.get("session_token")
                 complete_notices = message.get("complete_notices")
