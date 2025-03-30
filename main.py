@@ -405,6 +405,11 @@ class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doct
 
     doctor = relationship("Doctor", back_populates="railway_resource_usage")
 
+class NoticesModel(Base):
+    __tablename__ = "notices"
+
+    session_token = Column(UUID(as_uuid=True), ForeignKey("sessions.session_token"), primary_key=True)
+    notices = Column(Text, nullable=False)  # Store the complete notices text
     
 
 # Pydantic models for API validation
@@ -1098,6 +1103,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
     #session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
     session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+    
 
     if not session:
         await websocket.close(code=1008)  # Invalid token, close connection
@@ -1187,7 +1193,24 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                             }
                         }
                         await manager.broadcast_to_session(session_token_current, update)
-                        await public_manager.broadcast_to_session(session_token_current, update)           
+                        await public_manager.broadcast_to_session(session_token_current, update)         
+            if message["type"] == "save_notice":
+                session_token_current = message.get("session_token")
+                complete_notices = message.get("complete_notices")
+
+                if complete_notices is not None:
+                    # No need to fetch session again, just check if it's valid
+                    if session:
+                        # Delete existing notices for this session_token
+                        db.query(NoticesModel).filter(NoticesModel.session_token == session_token).delete()
+
+                        # Add the new notice entry
+                        new_notice = NoticesModel(session_token=session_token, notices=complete_notices)
+                        db.add(new_notice)
+
+                        # Commit the changes to the database
+                        db.commit()            
+                         
             
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
