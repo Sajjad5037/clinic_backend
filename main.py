@@ -1194,23 +1194,56 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         }
                         await manager.broadcast_to_session(session_token_current, update)
                         await public_manager.broadcast_to_session(session_token_current, update)         
-            if message["type"] == "save_notice":
+            elif message["type"] == "save_notice":
                 session_token_current = message.get("session_token")
                 complete_notices = message.get("complete_notices")
 
                 if complete_notices is not None:
                     # No need to fetch session again, just check if it's valid
                     if session:
-                        # Delete existing notices for this session_token
-                        db.query(NoticesModel).filter(NoticesModel.session_token == session_token).delete()
+                        try:
+                            # Delete existing notices for this session_token
+                            db.query(NoticesModel).filter(NoticesModel.session_token == session_token).delete()
 
-                        # Add the new notice entry
-                        new_notice = NoticesModel(session_token=session_token, notices=complete_notices)
-                        db.add(new_notice)
+                            # Add the new notice entry
+                            new_notice = NoticesModel(session_token=session_token, notices=complete_notices)
+                            db.add(new_notice)
 
-                        # Commit the changes to the database
-                        db.commit()            
-                         
+                            # Commit the changes to the database
+                            db.commit()
+
+                            # Send a success response back to the frontend
+                            update = {
+                                "type": "notice_saved",
+                                "data": {
+                                    "message": "Notices successfully saved",
+                                    "notices": School_state.get_session(session_token)["notices"],
+                                    "session_token": session_token
+                                }
+                            }
+                            await manager.broadcast_to_session(session_token, update)
+                        
+                        except Exception as e:
+                            db.rollback()  # Roll back the transaction if something goes wrong
+                            error_response = {
+                                "type": "error",
+                                "data": {
+                                    "message": "Failed to save notices.",
+                                    "error": str(e),
+                                    "session_token": session_token
+                                }
+                            }
+                            await websocket.send_text(json.dumps(error_response))
+                    else:
+                        # Send an error response if session is invalid
+                        error_response = {
+                            "type": "error",
+                            "data": {
+                                "message": "Invalid session. Cannot save notices.",
+                                "session_token": session_token
+                            }
+                        }
+                        await websocket.send_text(json.dumps(error_response))             
             
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
