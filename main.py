@@ -288,10 +288,8 @@ class SchoolState:
     def add_notice(self, session_token, notice: str):
         """Adds a trimmed notice to the notice board if it's not empty."""
         session = self.get_session(session_token)
-        trimmed_notice = notice.strip()
-        if trimmed_notice:
-            session["notices"].append(trimmed_notice)
-    
+        if notice:  # Ensure it's not an empty string
+            session["notices"].append(notice)
     def get_public_state(self, session_token):
         session = self.get_session(session_token)
         return {            
