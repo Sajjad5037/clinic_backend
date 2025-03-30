@@ -5,7 +5,7 @@ from starlette.responses import JSONResponse
 from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text,Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -406,11 +406,10 @@ class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doct
     doctor = relationship("Doctor", back_populates="railway_resource_usage")
 
 class NoticesModel(Base):
-    __tablename__ = "notices"
+    __tablename__ = "new_notices"
 
     session_token = Column(UUID(as_uuid=True), ForeignKey("sessions.session_token"), primary_key=True)
-    notices = Column(Text, nullable=False)  # Store the complete notices text
-    
+    notices = Column(JSONB, nullable=False)  # Store notices as JSON    
 
 # Pydantic models for API validation
 class DoctorCreate(BaseModel):  # Used to create doctors
