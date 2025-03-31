@@ -1967,14 +1967,19 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject DB session
     try:
+        print(f"Received request: {request}")
+        
         if not request.message:
+            print("Error: Message is required but missing.")
             raise HTTPException(status_code=400, detail="Message is required")
 
         if request.user_id is None:
+            print("Error: User ID is required but missing.")
             raise HTTPException(status_code=400, detail="User ID is required")
 
         # Identify user
         user_id = request.user_id
+        print(f"Processing request for user_id: {user_id}")
         
         # Set system message based on user_id
         if user_id == 10:
@@ -2002,36 +2007,47 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
 
         # Log API usage
         current_month = date.today().month
+        print(f"Current month: {current_month}")
         api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=current_month).first()
 
         if api_usage_entry:
+            print(f"API usage entry found: {api_usage_entry.request_count} requests")
             if api_usage_entry.request_count >= 1000:
+                print(f"Warning: User {user_id} has exceeded request limit.")
                 raise HTTPException(status_code=429, detail="Daily request limit reached (1000 requests). Please try again tomorrow.")
         else:
+            print("No API usage entry found. Creating a new one.")
             api_usage_entry = APIUsageModel(doctor_id=user_id, request_type="chatbot", request_count=0, date=current_month)
             db.add(api_usage_entry)
             db.commit()
 
         # OpenAI API call
         try:
+            print("Calling OpenAI API...")
             chat_completion = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[system_message, user_message]
             )
-        except Exception:
+            print("OpenAI API call successful.")
+        except Exception as api_error:
+            print(f"Error: OpenAI API call failed: {api_error}")
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
         # Extract response
         bot_reply = chat_completion.choices[0].message.content
+        print(f"Bot reply: {bot_reply}")
 
         # Update API usage
         api_usage_entry.request_count += 1
         db.commit()  # Save changes
+        print(f"Updated API usage count: {api_usage_entry.request_count}")
 
         return {"reply": bot_reply}
 
     except Exception as e:
+        print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 """
 # GET /patients - Fetch all patients
 @app.get("/patients", response_model=List[PatientResponse])
