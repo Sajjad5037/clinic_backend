@@ -1975,7 +1975,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
 
         # Identify user
         user_id = request.user_id
-
+        
         # Set system message based on user_id
         if user_id == 10:
             system_message_content = (
@@ -2000,6 +2000,18 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
         system_message = {"role": "system", "content": system_message_content}
         user_message = {"role": "user", "content": request.message}
 
+        # Log API usage
+        current_month = date.today().month
+        api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=current_month).first()
+
+        if api_usage_entry:
+            if api_usage_entry.request_count >= 1000:
+                raise HTTPException(status_code=429, detail="Daily request limit reached (1000 requests). Please try again tomorrow.")
+        else:
+            api_usage_entry = APIUsageModel(doctor_id=user_id, request_type="chatbot", request_count=0, date=current_month)
+            db.add(api_usage_entry)
+            db.commit()
+
         # OpenAI API call
         try:
             chat_completion = client.chat.completions.create(
@@ -2012,16 +2024,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
         # Extract response
         bot_reply = chat_completion.choices[0].message.content
 
-        # Log API usage
-        today = date.today()
-        api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=today).first()
-
-        if api_usage_entry:
-            api_usage_entry.request_count += 1  # Increment count
-        else:
-            api_usage_entry = APIUsageModel(doctor_id=user_id, request_type="chatbot", request_count=1, date=today)
-            db.add(api_usage_entry)
-
+        # Update API usage
+        api_usage_entry.request_count += 1
         db.commit()  # Save changes
 
         return {"reply": bot_reply}
