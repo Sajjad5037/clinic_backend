@@ -2006,7 +2006,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
         user_message = {"role": "user", "content": request.message}
 
         # Log API usage
-        current_month = date.today().month
+        current_month = date.today().replace(day=1)  # Ensures a full date object (e.g., 2024-03-01)
+
         print(f"Current month: {current_month}")
         api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=current_month).first()
 
