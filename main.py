@@ -478,7 +478,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allow specific origins
+    allow_origins=["*"],  # Allow specific origins
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
@@ -2004,7 +2004,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
 
         if api_usage_entry:
             if api_usage_entry.request_count >= 1000:
-                print(f"Warning: User {user_id} has exceeded request limit.")
+                
                 raise HTTPException(status_code=429, detail="Daily request limit reached (1000 requests). Please try again tomorrow.")
         else:
             api_usage_entry = APIUsageModel(doctor_id=user_id, request_type="chatbot", request_count=0, date=current_month)
