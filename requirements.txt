@@ -31,6 +31,7 @@ google-analytics-data==0.18.17
 google-api-core==2.24.1
 google-api-python-client==2.161.0
 google-auth-httplib2==0.2.0
+google-cloud-core==2.4.3
 google-crc32c==1.7.1
 google-resumable-media==2.7.2
 googleapis-common-protos==1.67.0
@@ -81,6 +82,7 @@ pydantic-settings==2.7.1
 pydantic_core==2.27.2
 PyMuPDF==1.25.3
 pyparsing==3.2.1
+pytesseract==0.3.13
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-multipart==0.0.20
