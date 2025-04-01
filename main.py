@@ -28,9 +28,13 @@ from fastapi.responses import StreamingResponse
 import qrcode
 import io
 import shutil
+import pytesseract
+
 
 from PIL import Image, ImageDraw, ImageFont
-
+import boto3
+#google cloud credentials
+# Google Cloud Storage configuration
 
 
 # Fetch the API key from environment variables
@@ -42,10 +46,24 @@ if not openai_api_key:
 
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
-
-
-
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
+
+# AWS S3 Configuration (Replace with your credentials)
+AWS_ACCESS_KEY_ID = "your-access-key-id"
+AWS_SECRET_ACCESS_KEY = "your-secret-access-key"
+AWS_REGION = "your-region"  # e.g., "us-east-1"
+BUCKET_NAME = "your-bucket-name"
+
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {"pdf"}
+
+# Initialize the S3 client
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+)
 
 
 
@@ -598,31 +616,37 @@ def get_db():
     finally:
         db.close()
 """
-# 📌 **1️⃣ Upload PDF**
-@app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_location = os.path.join(UPLOAD_DIR, file.filename)
-
-    # Save the file
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    # Generate file URL
-    file_url = f"https://clinic-management-system-27d11.web.app/uploads/{file.filename}"
-
-    # Save URL in the database
-    db_pdf = PDFFile(pdf_url=file_url)
-    db.add(db_pdf)
-    db.commit()
-
-    return {"pdf_url": file_url}
-
-@app.get("/pdfs")
-def get_pdfs(db: Session = Depends(get_db)):  # ✅ Use `Session` instead of `SessionLocal`
-    pdfs = db.query(PDFFile).all()
-    return [{"pdf_url": pdf.pdf_url} for pdf in pdfs]
 
 
+def allowed_file(filename: str) -> bool:
+    """Check if the file extension is allowed."""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def generate_pdf_url(bucket_name: str, filename: str) -> str:
+    """Generate a public URL for the uploaded PDF from S3."""
+    return f"https://{bucket_name}.s3.{AWS_REGION}.amazonaws.com/{filename}"
+
+@app.post("/uploadPdf")
+async def upload_pdf(pdf: UploadFile = File(...)):
+    # Check if the uploaded file is a PDF
+    if pdf.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are allowed.")
+
+    if not allowed_file(pdf.filename):
+        raise HTTPException(status_code=400, detail="Invalid file extension. Only PDF files are allowed.")
+
+    # Create a unique filename
+    file_extension = pdf.filename.rsplit(".", 1)[1].lower()
+    unique_filename = f"{uuid4().hex}.{file_extension}"
+
+    try:
+        # Upload the file to Amazon S3
+        s3_client.upload_fileobj(pdf.file, BUCKET_NAME, unique_filename, ExtraArgs={"ContentType": pdf.content_type, "ACL": "public-read"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file to Amazon S3: {e}")
+
+    pdf_url = generate_pdf_url(BUCKET_NAME, unique_filename)
+    return JSONResponse(status_code=200, content={"message": "Upload successful", "pdfUrl": pdf_url})
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
@@ -829,6 +853,24 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
+@app.post("/extractText")
+async def extract_text(image: UploadFile = File(...)):
+    # Ensure the uploaded file is an image
+    if not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Only image files are allowed.")
+    
+    try:
+        # Read the uploaded file into memory
+        contents = await image.read()
+        # Open the image using Pillow
+        img = Image.open(io.BytesIO(contents))
+        # Use pytesseract to extract text from the image
+        extracted_text = pytesseract.image_to_string(img)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing image: {e}")
+
+    return JSONResponse(status_code=200, content={"extractedText": extracted_text})
+
 """
 @app.websocket("/ws/public/{session_token}/{public_token}")
 async def public_websocket_endpoint(
@@ -901,6 +943,7 @@ async def public_websocket_endpoint(
         print(f"🔻 Removed from WebSocket manager: session_token={session_token}\n")
         till here 
     """
+
 
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
