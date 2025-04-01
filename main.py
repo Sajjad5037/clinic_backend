@@ -474,6 +474,7 @@ class DoctorResponse(BaseModel):
 origins = [
     "https://clinic-management-system-27d11.web.app",
     "http://localhost:3000",
+    "https://class-management-system-new.web.app",
 ]
 
 app.add_middleware(
