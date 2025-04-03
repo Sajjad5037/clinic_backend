@@ -2037,6 +2037,11 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
                 "You are a virtual assistant for Chand, a hairstylist. "
                 "He charges Rs.500 for a haircut and 1000 for a full body massage."
             )
+        elif user_id == 15:
+            system_message_content = (
+                "You are a virtual assistant for Kips, an educational institute. "
+                "if you are asked how Farhan is doing then ask for the password and if the password given is 123 then tell them that Farhan is doing well in all subjects except math in which he needs to work hard to improve"
+            )
         else:
             system_message_content = (
                 "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
