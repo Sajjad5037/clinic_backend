@@ -2017,6 +2017,26 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
         return {"doctor_id": session.doctor_id}
     return {"error": "Invalid session or doctor not found"}
 """
+def is_relevant_to_neurology(user_input):
+    relevant_keywords = [
+        "neurology", "brain", "nervous system", "epilepsy", "migraine",
+        "stroke", "parkinson", "multiple sclerosis", "alzheimers",
+        "headache", "nerve pain", "neurologist", "doctor", "appointment"
+    ]
+    
+    irrelevant_keywords = [
+        "recipe", "cook", "food", "biryani", "weather", "movie",
+        "cricket", "sports", "joke", "entertainment", "news", "politics"
+    ]
+    
+    user_input = user_input.lower()
+    
+    if any(word in user_input for word in irrelevant_keywords):
+        return False  # Block input
+    if any(word in user_input for word in relevant_keywords):
+        return True  # Allow input
+    return False  # Default to blocking ambiguous inputs
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject DB session
     try:
@@ -2029,6 +2049,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
         user_id = request.user_id
          # Set system message based on user_id
         if user_id == 10:
+           if not is_relevant_to_neurology(request.message):
+                return {"reply": "I'm sorry, but I can only assist with Neurology-related questions or information related to Dr. Sarfraz."}
            system_message_content = (
         "You are a virtual assistant for Dr. Sarfraz, a neurologist. "
         "Your role is strictly limited to answering questions about:\n"
@@ -2078,9 +2100,10 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
         # OpenAI API call
         try:
             chat_completion = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[system_message, user_message]
-            )        
+            model="gpt-4o-mini",
+            temperature=0.2,  # Lower = more predictable
+            messages=[system_message, user_message]
+        )        
         except Exception as api_error:
             print(f"Error: OpenAI API call failed: {api_error}")
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
