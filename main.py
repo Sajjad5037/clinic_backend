@@ -29,6 +29,7 @@ import qrcode
 import io
 import shutil
 import pytesseract
+from datetime import datetime, timedelta
 
 
 from PIL import Image, ImageDraw, ImageFont
@@ -39,7 +40,11 @@ import boto3
 
 # Fetch the API key from environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
+# In-memory system prompt cache (per user)
+system_prompt_cache = {}
 
+# Define how long a session lasts
+SESSION_DURATION = timedelta(minutes=30)
 # Check if API key is set
 if not openai_api_key:
     print("Error: OPENAI_API_KEY_S is not set in environment variables.")
@@ -518,6 +523,21 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_cached_system_prompt(user_id):
+    now = datetime.utcnow()
+    entry = system_prompt_cache.get(user_id)
+
+    if entry:
+        timestamp, prompt = entry
+        if now - timestamp < SESSION_DURATION:
+            return prompt
+
+    return None
+
+
+def set_cached_system_prompt(user_id, prompt):
+    system_prompt_cache[user_id] = (datetime.utcnow(), prompt)
 
 def create_admin(db: Session):
     """Ensure an admin user exists in the database."""
@@ -2038,6 +2058,96 @@ def is_relevant_to_neurology(user_input):
     return False  # Default to blocking ambiguous inputs
 
 @app.post("/api/chat")
+async def chat(request: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        if not request.message:
+            raise HTTPException(status_code=400, detail="Message is required")
+        if request.user_id is None:
+            raise HTTPException(status_code=400, detail="User ID is required")
+
+        user_id = request.user_id
+
+        # Set system message
+        if user_id == 10:
+            if not is_relevant_to_neurology(request.message):
+                return {"reply": "I'm sorry, but I can only assist with Neurology-related questions or information related to Dr. Sarfraz."}
+            system_message_content = (
+                "You are a virtual assistant for Dr. Sarfraz, a neurologist. "
+                "Your role is strictly limited to answering questions about:\n"
+                "- Neurological health issues\n"
+                "- Dr. Sarfraz's qualifications and services\n"
+                "- Appointments and clinic information\n"
+                "\n"
+                "If the user asks about *anything else* (e.g., cooking, entertainment, religion, technology, etc.), you MUST respond exactly with:\n"
+                "'I'm sorry, but I can only assist with Neurology-related questions or information related to Dr. Sarfraz.'\n"
+                "Do NOT provide any other information outside of this scope."
+            )
+
+        elif user_id == 3:
+            system_message_content = (
+                "You are a virtual assistant for Chand, a hairstylist. "
+                "He charges Rs.500 for a haircut and 1000 for a full body massage."
+            )
+
+        elif user_id == 15:
+            system_message_content = (
+                "You are a virtual assistant for Kips, an educational institute. "
+                "If you are asked how Farhan is doing then ask for the password and if the password given is 123 then tell them that Farhan is doing well in all subjects except math in which he needs to work hard to improve."
+            )
+
+        else:
+            system_message_content = (
+                "You are my virtual assistant, trained to assist clients with any questions or tasks they may have. "
+                "I have expertise in Python, having studied Automate the Boring Stuff with Python and Master Python for Data Science. "
+                "When interacting with clients, provide insightful responses that highlight my skills and experience. "
+                "Only accept projects that align with my expertise, ensuring that I can deliver high-quality results. "
+                "If the client wishes to communicate further, provide my email address: proactive1.san@gmail.com. "
+                "Your goal is to help attract relevant projects that match my background in Python programming and data science."
+            )
+
+        system_message = {"role": "system", "content": system_message_content}
+        user_message = {"role": "user", "content": request.message}
+
+        # API usage tracking
+        current_month = date.today().replace(day=1)
+        api_usage_entry = db.query(APIUsageModel).filter_by(doctor_id=user_id, date=current_month).first()
+
+        if api_usage_entry:
+            if api_usage_entry.request_count >= 1000:
+                raise HTTPException(status_code=429, detail="Daily request limit reached (1000 requests). Please try again tomorrow.")
+        else:
+            api_usage_entry = APIUsageModel(
+                doctor_id=user_id,
+                request_type="chatbot",
+                request_count=0,
+                date=current_month
+            )
+            db.add(api_usage_entry)
+            db.commit()
+
+        # OpenAI call
+        try:
+            chat_completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.2,
+                messages=[system_message, user_message]
+            )
+        except Exception as api_error:
+            print(f"OpenAI API error: {api_error}")
+            raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
+
+        # Extract and return
+        bot_reply = chat_completion.choices[0].message.content
+        api_usage_entry.request_count += 1
+        db.commit()
+
+        return {"reply": bot_reply}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+"""
+@app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject DB session
     try:
         if not request.message:
@@ -2117,6 +2227,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject D
 
     except Exception as e:        
         raise HTTPException(status_code=500, detail=str(e))
+    """
 
 """
 # GET /patients - Fetch all patients
