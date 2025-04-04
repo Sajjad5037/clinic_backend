@@ -2020,7 +2020,7 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
 def is_relevant_to_neurology(user_input):
     relevant_keywords = [
         "neurology", "brain", "nervous system", "epilepsy", "migraine",
-        "stroke", "parkinson", "multiple sclerosis", "alzheimers",
+        "stroke", "parkinson", "multiple sclerosis","sarfraz", "alzheimers",
         "headache", "nerve pain", "neurologist", "doctor", "appointment"
     ]
     
