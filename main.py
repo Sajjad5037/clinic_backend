@@ -2105,6 +2105,13 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 "Your goal is to help attract relevant projects that match my background in Python programming and data science."
             )
 
+        cached_prompt = get_cached_system_prompt(user_id)
+        if cached_prompt:
+            system_message_content = cached_prompt
+        else:
+            # build your system prompt based on user_id...
+            set_cached_system_prompt(user_id, system_message_content)
+
         system_message = {"role": "system", "content": system_message_content}
         user_message = {"role": "user", "content": request.message}
 
