@@ -239,10 +239,11 @@ class OrderManagerState:
             self.sessions[session_token] = {
                 "preparingList": [],
                 "servingList": [],
-                "notices": []
+                "notices": [],
+                "orderList": [],
+                "cartList": []
             }
         return self.sessions[session_token]
-
     def add_item(self, session_token, item: str):
         """Adds a trimmed item to the preparing list if it's not empty."""
         session = self.get_session(session_token)
@@ -1155,6 +1156,25 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
                     await manager.broadcast_to_session(session_token_current, update)
                     await public_manager.broadcast_to_session(session_token_current, update)
+            elif message["type"] == "add_item_cart":
+                    session_token_current = message.get("session_token")
+                    item_to_add = message.get("item")  # Assuming the message contains an "item" key
+
+                    if item_to_add is not None:
+                        # Add item to the cartList in the session
+                        OrderManager_state.get_session(session_token_current)["cartList"].append(item_to_add)
+                        
+
+                        update = {
+                            "type": "add_item_cart",
+                            "data": {                                
+                                "cartList": OrderManager_state.get_session(session_token_current)["cartList"],
+                                "session_token": session_token_current
+                            }
+                        }
+
+                        await manager.broadcast_to_session(session_token_current, update)
+                        await public_manager.broadcast_to_session(session_token_current, update)
 
             
     except WebSocketDisconnect as e:
