@@ -1177,27 +1177,31 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
                         await public_manager.broadcast_to_session(session_token_current, update)
 
             elif message["type"] == "place_order":
-                    session_token_current = message.get("session_token")
+                        session_token_current = message.get("session_token")
 
-                    # Get the session
-                    session = OrderManager_state.get_session(session_token_current)
+                        # Get the session
+                        session = OrderManager_state.get_session(session_token_current)
 
-                    if session["cartList"]:  # Only proceed if cart is not empty
-                        # Move items from cartList to orderList
-                        session["orderList"].extend(session["cartList"])                                    
-                        session["cartList"].clear()
+                        if session["cartList"]:  # Only proceed if cart is not empty
+                            # Move items from cartList to orderList
+                            session["orderList"].extend(session["cartList"])                                    
+                            session["cartList"].clear()
 
-                        update = {
-                            "type": "place_order",
-                            "data": {
-                                "orderList": session["orderList"],
-                                "cartList": session["cartList"],  # should now be empty
-                                "session_token": session_token_current
+                            update = {
+                                "type": "place_order",
+                                "data": {
+                                    "orderList": session["orderList"],
+                                    "cartList": session["cartList"],
+                                    "session_token": session_token_current
+                                }
                             }
-                        }
 
-                        await manager.broadcast_to_session(session_token_current, update)
-                        await public_manager.broadcast_to_session(session_token_current, update)
+                            # Send update to the client who placed the order
+                            await manager.broadcast_to_session(session_token_current, update)
+
+                            # Send update to ALL public (management/admin) clients
+                            await public_manager.broadcast(update)
+
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
         await manager.disconnect(websocket, session_token)
