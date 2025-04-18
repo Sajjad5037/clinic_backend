@@ -2,7 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import date
 from starlette.responses import JSONResponse
-from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text,Date
+from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text,Date,Sequence
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
@@ -30,6 +30,8 @@ import io
 import shutil
 import pytesseract
 from datetime import datetime, timedelta
+import psycopg2
+
 
 
 from PIL import Image, ImageDraw, ImageFont
@@ -381,17 +383,16 @@ class PatientResponse(PatientCreate):
 class Doctor(Base):
     __tablename__ = "doctors"
 
-    id = Column(Integer, primary_key=True, server_default=text("nextval('doctors_id_seq')"))
+    # Manually creating the sequence to control when the id is auto-generated
+    id = Column(Integer, Sequence('doctor_id_seq'), primary_key=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(Text, nullable=False)  # Store hashed passwords efficiently
     name = Column(String, nullable=False)
     specialization = Column(String, nullable=False)
+    
+    # Define relationships
     api_usage = relationship("APIUsageModel", back_populates="doctor")
-    # Relationship for railway resource usage (ensure the correct name!)
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
-
-
-    # Define relationship for cascading delete
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
 
 class SessionModel(Base):  # Handles authentication sessions
@@ -517,6 +518,7 @@ app.add_middleware(SessionMiddleware, secret_key=secret_key)
 # Load environment variables
 #DATABASE_URL = os.getenv("PostgreSQL_database")  # Use PostgreSQL instead of SQLite
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "sajjad")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
