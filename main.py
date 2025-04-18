@@ -550,20 +550,18 @@ def set_cached_system_prompt(user_id, prompt):
 def create_admin(db: Session):
     """Ensure an admin user exists in the database."""
 
-    # ✅ Make sure the sequence exists before anything else
-    inspector = inspect(engine)
+    # ✅ Ensure the sequence exists
     try:
-        # Check if the sequence exists
-        result = db.execute(text("SELECT 1 FROM pg_class WHERE relkind = 'S' AND relname = 'doctor_id_seq';"))
+        result = db.execute(text("SELECT 1 FROM pg_class WHERE relkind = 'S' AND relname = 'doctors_id_seq';"))
         if result.scalar() is None:
-            print("🔧 Creating missing sequence: doctor_id_seq")
-            db.execute(text("CREATE SEQUENCE doctor_id_seq START 1;"))
+            print("🔧 Creating missing sequence: doctors_id_seq")
+            db.execute(text("CREATE SEQUENCE doctors_id_seq START 1;"))
             db.commit()
     except ProgrammingError as e:
         print(f"❌ Failed checking/creating sequence: {e}")
         db.rollback()
 
-    # ✅ Now proceed to create admin
+    # ✅ Create or update admin
     admin = db.query(Doctor).filter_by(username=ADMIN_USERNAME).first()
 
     if not admin:
@@ -581,6 +579,14 @@ def create_admin(db: Session):
         db.commit()
 
     print("✅ Admin account created/updated successfully.")
+
+    # ✅ Reset sequence
+    db.execute(text("SELECT setval('doctors_id_seq', (SELECT MAX(id) FROM doctors), false);"))
+    db.commit()
+
+# ✅ Run admin creation after defining everything
+with SessionLocal() as db:
+    create_admin(db)
 
 # Pydantic model for login requests
 class LoginRequest(BaseModel):
