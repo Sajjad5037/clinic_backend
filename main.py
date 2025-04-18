@@ -524,7 +524,8 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
 # Initialize PostgreSQL database engine
 engine = create_engine(DATABASE_URL)  # Removed SQLite-specific arguments
 
-SessionLocal = sessionmakear(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
