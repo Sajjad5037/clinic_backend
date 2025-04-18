@@ -549,6 +549,21 @@ def set_cached_system_prompt(user_id, prompt):
 
 def create_admin(db: Session):
     """Ensure an admin user exists in the database."""
+
+    # ✅ Make sure the sequence exists before anything else
+    inspector = inspect(engine)
+    try:
+        # Check if the sequence exists
+        result = db.execute(text("SELECT 1 FROM pg_class WHERE relkind = 'S' AND relname = 'doctor_id_seq';"))
+        if result.scalar() is None:
+            print("🔧 Creating missing sequence: doctor_id_seq")
+            db.execute(text("CREATE SEQUENCE doctor_id_seq START 1;"))
+            db.commit()
+    except ProgrammingError as e:
+        print(f"❌ Failed checking/creating sequence: {e}")
+        db.rollback()
+
+    # ✅ Now proceed to create admin
     admin = db.query(Doctor).filter_by(username=ADMIN_USERNAME).first()
 
     if not admin:
@@ -559,25 +574,13 @@ def create_admin(db: Session):
             specialization="Administrator"
         )
         db.add(admin)
-        db.commit()  # ✅ Commit to assign admin.id
+        db.commit()
         db.refresh(admin)
-
     else:
-        admin.password = pwd_context.hash(ADMIN_PASSWORD)  # Ensure password updates if changed
+        admin.password = pwd_context.hash(ADMIN_PASSWORD)
         db.commit()
 
     print("✅ Admin account created/updated successfully.")
-    
-    # ✅ Reset the sequence correctly only if no insert failed
-    db.execute(text(f"SELECT setval('doctors_id_seq', (SELECT MAX(id) FROM doctors), false);"))
-    db.commit()
-
-# Create tables before initializing admin
-Base.metadata.create_all(bind=engine)
-
-# Ensure admin user exists
-with SessionLocal() as db:
-    create_admin(db)
 
 # Pydantic model for login requests
 class LoginRequest(BaseModel):
