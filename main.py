@@ -515,14 +515,16 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=secret_key)
 
 # Load environment variables
-DATABASE_URL = os.getenv("PostgreSQL_database")  # Use PostgreSQL instead of SQLite
+#DATABASE_URL = os.getenv("PostgreSQL_database")  # Use PostgreSQL instead of SQLite
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "sajjad")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "shuwafF2016")
 
 # Initialize PostgreSQL database engine
 engine = create_engine(DATABASE_URL)  # Removed SQLite-specific arguments
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmakear(autocommit=False, autoflush=False, bind=engine)
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
