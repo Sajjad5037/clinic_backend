@@ -78,7 +78,7 @@ s3_client = boto3.client(
 
 app = FastAPI()
 
-DATABASE_URL_odoo = "postgres://postgres:kjGpbgrYxbjPKIXBYjiwRkwbYYwrSOgs@postgres.railway.internal:5432/odoo_database"
+DATABASE_URL_odoo = "postgresql://postgres:kjGpbgrYxbjPKIXBYjiwRkwbYYwrSOgs@postgres.railway.internal:5432/railway"
 print(f"Database URL for Odoo: {DATABASE_URL_odoo}")
 try:
     print("Attempting to create engine with the provided database URL...")
