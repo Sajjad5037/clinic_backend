@@ -751,9 +751,9 @@ def generate_pdf_url(bucket_name: str, filename: str) -> str:
     return f"https://{bucket_name}.s3.{AWS_REGION}.amazonaws.com/{filename}"
 
 def odoo_connect():
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+    common = xmlrpc.client.ServerProxy(f"{DATABASE_URL_odoo}/xmlrpc/2/common")
     uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_PASSWORD, {})
-    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+    models = xmlrpc.client.ServerProxy(f"{DATABASE_URL_odoo}/xmlrpc/2/object")
     return common, uid, models
 
 @app.post("/add-user")
