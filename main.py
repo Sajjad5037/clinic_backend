@@ -7,6 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
+import sys
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -78,7 +79,15 @@ s3_client = boto3.client(
 app = FastAPI()
 
 DATABASE_URL_odoo = "postgres://postgres:kjGpbgrYxbjPKIXBYjiwRkwbYYwrSOgs@postgres.railway.internal:5432/odoo_database"
-engine = create_engine(DATABASE_URL_odoo)
+print(f"Database URL for Odoo: {DATABASE_URL_odoo}")
+try:
+    print("Attempting to create engine with the provided database URL...")
+    engine = create_engine(DATABASE_URL_odoo)
+    print("Engine created successfully.")
+except Exception as e:
+    print(f"Error occurred during engine creation: {e}")
+    sys.exit(1)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 # Odoo connection settings
@@ -719,47 +728,46 @@ def odoo_connect():
 
 @app.post("/add-user")
 async def add_user(user_data: UserData):
-    db = SessionLocal()
-
-    # Connect to Odoo
     try:
-        common, uid, models = odoo_connect()
+        # Debugging print for the received data
+        print(f"Received user data: {user_data.dict()}")
 
-        # Create user in Odoo (modify as per your Odoo version and model)
-        user_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
-                                     'res.users', 'create', [{
-                                         'name': user_data.name,
-                                         'login': user_data.login,
-                                         'email': user_data.email,
-                                     }])
+        # Connect to the database
+        db = SessionLocal()
 
-        # Find the clinic by name
+        # Find the clinic by name (debugging this step)
+        print(f"Searching for clinic with name: {user_data.clinic_name}")
         clinic = db.query(Clinic).filter(Clinic.name == user_data.clinic_name).first()
 
         if not clinic:
             raise HTTPException(status_code=404, detail="Clinic not found")
 
-        # Save the user in your local database, associating with the clinic
+        print(f"Found clinic: {clinic.name} (ID: {clinic.id})")
+
+        # Create the user (debugging this step)
+        print("Creating user in the database...")
         new_user = User(
             name=user_data.name,
             login=user_data.login,
             email=user_data.email,
             role=user_data.role,
-            clinic_id=clinic.id  # Associate with the clinic
+            clinic_id=clinic.id
         )
 
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
 
+        # Return response
+        print(f"User created with ID: {new_user.id}")
         db.close()
 
-        return {"message": "User created successfully in Odoo and saved in database", "user_id": user_id, "user": new_user}
-
+        return {"message": "User created successfully", "user_id": new_user.id}
+    
     except Exception as e:
-        db.close()
-        # Catch any errors and return an HTTP error
-        raise HTTPException(status_code=500, detail=f"Failed to create user in Odoo and save in database: {str(e)}")
+        print(f"An error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"Error occurred: {e}")
+    
 @app.post("/uploadPdf")
 async def upload_pdf(pdf: UploadFile = File(...)):
     # Check if the uploaded file is a PDF
