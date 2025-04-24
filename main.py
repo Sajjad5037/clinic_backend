@@ -8,6 +8,8 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
 import sys
+import sqlalchemy 
+from sqlalchemy.engine import make_url
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -82,6 +84,14 @@ DATABASE_URL_odoo = "postgresql://postgres:kjGpbgrYxbjPKIXBYjiwRkwbYYwrSOgs@post
 print(f"Database URL for Odoo: {DATABASE_URL_odoo}")
 try:
     print("Attempting to create engine with the provided database URL...")
+        # DEBUG: Check URL before engine creation
+    print(f"🔍 SQLAlchemy version: {sqlalchemy.__version__}")
+    print(f"🧠 DATABASE_URL_odoo being passed: {DATABASE_URL_odoo}")
+    try:
+        parsed_url = make_url(DATABASE_URL_odoo)
+        print(f"✅ Parsed dialect: {parsed_url.get_dialect().__name__}")
+    except Exception as e:
+        print(f"❌ Failed to parse URL: {e}")
     engine = create_engine(DATABASE_URL_odoo)
     print("Engine created successfully.")
 except Exception as e:
