@@ -16,6 +16,7 @@ import json
 import time
 import uuid  # For generating unique tokens
 import os
+import xmlrpc.client
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timedelta,timezone
 import traceback
@@ -75,10 +76,24 @@ s3_client = boto3.client(
 
 
 app = FastAPI()
+# Odoo connection settings
+ODOO_URL = "https://odoo-custom-production.up.railway.app"
+ODOO_DB = "odoo_database"  # Replace with your actual database name
+ODOO_USER = "odoo_user"    # Replace with the username you use for authentication
+ODOO_PASSWORD = "shuwafF2016"  # Replace with your password
+
+
 session_states = {}
 clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
+
+class UserData(BaseModel):
+    name: str
+    email: str
+    login: str
 
 class PDFFile(Base):
     __tablename__ = "pdfs"
@@ -663,6 +678,33 @@ def allowed_file(filename: str) -> bool:
 def generate_pdf_url(bucket_name: str, filename: str) -> str:
     """Generate a public URL for the uploaded PDF from S3."""
     return f"https://{bucket_name}.s3.{AWS_REGION}.amazonaws.com/{filename}"
+
+def odoo_connect():
+    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
+    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_PASSWORD, {})
+    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+    return common, uid, models
+
+@app.post("/add-user")
+async def add_user(user_data: UserData):
+    try:
+        # Connect to Odoo
+        common, uid, models = odoo_connect()
+
+        # Create user in Odoo (you may need to modify this depending on your Odoo version and model)
+        user_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+            'res.users', 'create', [{
+                'name': user_data.name,
+                'login': user_data.login,
+                'email': user_data.email,
+            }])
+
+        # Return the created user ID
+        return {"message": "User created successfully", "user_id": user_id}
+
+    except Exception as e:
+        # Catch any errors and return an HTTP error
+        raise HTTPException(status_code=500, detail=f"Failed to create user in Odoo: {str(e)}")
 
 @app.post("/uploadPdf")
 async def upload_pdf(pdf: UploadFile = File(...)):
