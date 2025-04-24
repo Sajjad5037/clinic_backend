@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
 import sys
+import odoorpc
 import sqlalchemy 
 from sqlalchemy.engine import make_url
 from passlib.context import CryptContext
@@ -98,14 +99,17 @@ except Exception as e:
     print(f"Error occurred during engine creation: {e}")
     sys.exit(1)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal_odoo = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 # Odoo connection settings
-ODOO_URL = "https://odoo-custom-production.up.railway.app"
-ODOO_DB = "odoo_database"  # Replace with your actual database name
-ODOO_USER = "odoo_user"    # Replace with the username you use for authentication
-ODOO_PASSWORD = "shuwafF2016"  # Replace with your password
+ODOO_HOST = 'https://odoo-custom-production.up.railway.app'
+ODOO_PORT = 8069
+ODOO_DB = 'odoo_database'
+ODOO_USER = 'odoo_user'
+ODOO_PASSWORD = 'shuwafF2016'
 
+odoo = odoorpc.ODOO(ODOO_HOST, port=ODOO_PORT)
+odoo.login(ODOO_DB, ODOO_USER, ODOO_PASSWORD)
 
 session_states = {}
 clients=[]
@@ -609,7 +613,23 @@ def get_cached_system_prompt(user_id):
 
     return None
 
+def create_odoo_user(name, login, email, role):
+    try:
+        # Define values for the new user
+        user_values = {
+            'name': name,
+            'login': login,
+            'email': email,
+            'groups_id': [(6, 0, [role])]  # Set the role for the user, assuming 'role' is a valid group ID in Odoo
+        }
 
+        # Create user in Odoo (this assumes the user model is 'res.users')
+        user_id = odoo.env['res.users'].create(user_values)
+        return user_id
+    except Exception as e:
+        print(f"Error occurred while creating user in Odoo: {e}")
+        return None
+    
 def set_cached_system_prompt(user_id, prompt):
     system_prompt_cache[user_id] = (datetime.utcnow(), prompt)
 
@@ -745,7 +765,7 @@ async def add_user(user_data: UserData):
         # Connect to the database
         db = SessionLocal()
 
-        # Find the clinic by name (debugging this step)
+        # Find the clinic by name
         print(f"Searching for clinic with name: {user_data.clinic_name}")
         clinic = db.query(Clinic).filter(Clinic.name == user_data.clinic_name).first()
 
@@ -754,7 +774,7 @@ async def add_user(user_data: UserData):
 
         print(f"Found clinic: {clinic.name} (ID: {clinic.id})")
 
-        # Create the user (debugging this step)
+        # Create the user in the local database
         print("Creating user in the database...")
         new_user = User(
             name=user_data.name,
@@ -768,16 +788,21 @@ async def add_user(user_data: UserData):
         db.commit()
         db.refresh(new_user)
 
+        # Now, create the user in Odoo
+        print(f"Creating user in Odoo with login: {user_data.login}...")
+        odoo_user_id = create_odoo_user(user_data.name, user_data.login, user_data.email, user_data.role)
+        if not odoo_user_id:
+            raise HTTPException(status_code=500, detail="Failed to create user in Odoo")
+
         # Return response
-        print(f"User created with ID: {new_user.id}")
+        print(f"User created with ID: {new_user.id} in the local database")
         db.close()
 
-        return {"message": "User created successfully", "user_id": new_user.id}
+        return {"message": "User created successfully", "user_id": new_user.id, "odoo_user_id": odoo_user_id}
     
     except Exception as e:
         print(f"An error occurred: {e}")
-        raise HTTPException(status_code=500, detail=f"Error occurred: {e}")
-    
+        raise HTTPException(status_code=500, detail=f"Error occurred: {e}")    
 @app.post("/uploadPdf")
 async def upload_pdf(pdf: UploadFile = File(...)):
     # Check if the uploaded file is a PDF
