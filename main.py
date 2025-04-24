@@ -76,6 +76,11 @@ s3_client = boto3.client(
 
 
 app = FastAPI()
+
+DATABASE_URL_odoo = "postgres://postgres:kjGpbgrYxbjPKIXBYjiwRkwbYYwrSOgs@postgres.railway.internal:5432/odoo_database"
+engine = create_engine(DATABASE_URL_odoo)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 # Odoo connection settings
 ODOO_URL = "https://odoo-custom-production.up.railway.app"
 ODOO_DB = "odoo_database"  # Replace with your actual database name
@@ -85,15 +90,42 @@ ODOO_PASSWORD = "shuwafF2016"  # Replace with your password
 
 session_states = {}
 clients=[]
-Base = declarative_base()
+
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+class Clinic(Base):
+    __tablename__ = 'clinics'
 
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+
+class UserCreate(BaseModel):
+    name: str
+    login: str
+    email: str
+    role: str
+    clinic_name: str  # Include clinic_name here
 
 class UserData(BaseModel):
     name: str
-    email: str
     login: str
+    email: str
+    role: str
+    clinic_name: str  # New field for clinic name
+
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    login = Column(String, unique=True)
+    email = Column(String)
+    role = Column(String)
+    clinic_id = Column(Integer, ForeignKey('clinics.id'))
+
+    clinic = relationship("Clinic", back_populates="users")
+
+Clinic.users = relationship("User", back_populates="clinic")
 
 class PDFFile(Base):
     __tablename__ = "pdfs"
@@ -687,25 +719,47 @@ def odoo_connect():
 
 @app.post("/add-user")
 async def add_user(user_data: UserData):
+    db = SessionLocal()
+
+    # Connect to Odoo
     try:
-        # Connect to Odoo
         common, uid, models = odoo_connect()
 
-        # Create user in Odoo (you may need to modify this depending on your Odoo version and model)
+        # Create user in Odoo (modify as per your Odoo version and model)
         user_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
-            'res.users', 'create', [{
-                'name': user_data.name,
-                'login': user_data.login,
-                'email': user_data.email,
-            }])
+                                     'res.users', 'create', [{
+                                         'name': user_data.name,
+                                         'login': user_data.login,
+                                         'email': user_data.email,
+                                     }])
 
-        # Return the created user ID
-        return {"message": "User created successfully", "user_id": user_id}
+        # Find the clinic by name
+        clinic = db.query(Clinic).filter(Clinic.name == user_data.clinic_name).first()
+
+        if not clinic:
+            raise HTTPException(status_code=404, detail="Clinic not found")
+
+        # Save the user in your local database, associating with the clinic
+        new_user = User(
+            name=user_data.name,
+            login=user_data.login,
+            email=user_data.email,
+            role=user_data.role,
+            clinic_id=clinic.id  # Associate with the clinic
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        db.close()
+
+        return {"message": "User created successfully in Odoo and saved in database", "user_id": user_id, "user": new_user}
 
     except Exception as e:
+        db.close()
         # Catch any errors and return an HTTP error
-        raise HTTPException(status_code=500, detail=f"Failed to create user in Odoo: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=f"Failed to create user in Odoo and save in database: {str(e)}")
 @app.post("/uploadPdf")
 async def upload_pdf(pdf: UploadFile = File(...)):
     # Check if the uploaded file is a PDF
