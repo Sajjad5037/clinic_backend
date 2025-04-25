@@ -922,7 +922,7 @@ async def add_user(request: Request):
         odoo_data = {
             "name": user_data.name,
             "email": user_data.email,
-            "role": user_data.role,
+            "role": user_data.role,  # This will be used to fetch the group ID
         }
 
         print("📤 Sending to Odoo:", odoo_data)
@@ -957,7 +957,17 @@ async def add_user(request: Request):
                 [{'name': user_data.clinic_name}]  # Create department if it doesn't exist
             )
 
-        # Step 4.2: Create the user in 'res.users' for login
+        # Step 4.2: Fetch the group ID for the specified role (e.g., "admin")
+        group_ids = models.execute_kw(
+            db, uid, password,
+            'res.groups', 'search',
+            [[['name', '=', user_data.role]]],  # Search for group by role name (e.g., "admin")
+        )
+
+        if not group_ids:
+            raise HTTPException(status_code=404, detail=f"Role '{user_data.role}' not found in Odoo")
+
+        # Step 4.3: Create the user in 'res.users' for login
         user_id = models.execute_kw(
             db, uid, password,
             'res.users', 'create',
@@ -965,7 +975,7 @@ async def add_user(request: Request):
                 'name': user_data.name,
                 'login': user_data.login,  # Now correctly associated with 'res.users'
                 'email': user_data.email,
-                'groups_id': [[6, 0, [user_data.role]]],  # Optional, assign the user group (role)
+                'groups_id': [[6, 0, group_ids]],  # Assign the role using the group ID(s)
             }]
         )
         print(f"✅ User created in Odoo with ID: {user_id}")
@@ -988,7 +998,7 @@ async def add_user(request: Request):
     except Exception as e:
         print("🚨 Exception occurred:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-            
+                
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
     # Ensure the uploaded file is an image
