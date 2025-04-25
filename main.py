@@ -941,21 +941,25 @@ async def add_user(request: Request):
         # 📦 Send data to Odoo
         models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
-        # Step 4.1: Fetch or create the department (clinic) for the user
-        department_id = models.execute_kw(
+        # Step 4.1: Search for the company (clinic) by clinic name
+        company_id = models.execute_kw(
             db, uid, password,
-            'hr.department', 'search',
-            [[['name', '=', user_data.clinic_name]]],  # Search for department by clinic name
+            'res.company', 'search',
+            [[['name', '=', user_data.clinic_name]]],  # Search for company by clinic name
             {'limit': 1}
         )
 
-        # If the department doesn't exist, create it
-        if not department_id:
-            department_id = models.execute_kw(
+        # If the company doesn't exist, create it
+        if not company_id:
+            company_id = models.execute_kw(
                 db, uid, password,
-                'hr.department', 'create',
-                [{'name': user_data.clinic_name}]  # Create department if it doesn't exist
+                'res.company', 'create',
+                [{'name': user_data.clinic_name}]  # Create company if it doesn't exist
             )
+            print(f"✅ Company '{user_data.clinic_name}' created in Odoo with ID: {company_id[0]}")
+        else:
+            company_id = company_id[0]  # Get the first match (if exists)
+            print(f"✅ Company '{user_data.clinic_name}' found in Odoo with ID: {company_id}")
 
         # Step 4.2: Fetch the group ID for the specified role (e.g., "admin")
         group_ids = models.execute_kw(
@@ -976,15 +980,16 @@ async def add_user(request: Request):
                 'login': user_data.login,  # Now correctly associated with 'res.users'
                 'email': user_data.email,
                 'groups_id': [[6, 0, group_ids]],  # Assign the role using the group ID(s)
+                'company_id': company_id,  # Associate the user with the company (clinic)
             }]
         )
         print(f"✅ User created in Odoo with ID: {user_id}")
 
-        # Step 5: Create the employee in 'hr.employee' and link it to the user
+        # Step 5: Create the employee in 'hr.employee' and link it to the user and company
         employee_data = {
             'name': user_data.name,
-            'department_id': department_id[0] if department_id else False,  # Ensure it's a single integer
             'user_id': user_id,  # Link the employee to the created user
+            'company_id': company_id,  # Link employee to the company (clinic)
         }
 
         staff_id = models.execute_kw(
