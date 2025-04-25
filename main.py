@@ -14,7 +14,6 @@ import asyncio
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query,UploadFile,File
 import json
-from odoo_routes import router as odoo_router 
 import time
 import uuid  # For generating unique tokens
 import os
@@ -77,7 +76,7 @@ s3_client = boto3.client(
 
 
 app = FastAPI()
-app.include_router(odoo_router)
+
 session_states = {}
 clients=[]
 Base = declarative_base()
@@ -904,7 +903,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
-@router.post("/add-user")
+@app.post("/add-user")
 async def add_user(request: Request):
     try:
         # 📥 Step 1: Get raw JSON data from the frontend
