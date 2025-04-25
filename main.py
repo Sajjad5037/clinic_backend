@@ -85,7 +85,7 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 class UserData(BaseModel):
     name: str
     email: str
-    login: str  # 🔑 Add this field to avoid runtime errors
+    login: Optional[str] = None  # Make it optional
     role: str
     clinic_name: str
 
