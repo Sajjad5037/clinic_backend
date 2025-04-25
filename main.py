@@ -7,6 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
+import xmlrpc.client
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
@@ -76,10 +77,18 @@ s3_client = boto3.client(
 
 
 app = FastAPI()
+app.include_router(odoo_router)
 session_states = {}
 clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+class UserData(BaseModel):
+    name: str
+    login: str
+    email: str
+    role: str  # Assuming 'role' is a string for now; adjust as per your requirements
+    clinicName: str
 
 class PDFFile(Base):
     __tablename__ = "pdfs"
@@ -533,6 +542,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
+
 def get_cached_system_prompt(user_id):
     now = datetime.utcnow()
     entry = system_prompt_cache.get(user_id)
@@ -893,6 +904,65 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
 
+@app.post("/add-user")
+async def add_user(user_data: UserData):
+    # Send the user data to Odoo
+    try:
+        # Prepare the data as required by Odoo API
+        odoo_data = {
+            "name": user_data.name,
+            "login": user_data.login,
+            "email": user_data.email,
+            "role": user_data.role,
+            "clinic_name": user_data.clinic_name
+        }
+
+        # Debugging print to check the data being sent to Odoo
+        print("User Data sent to Odoo:", odoo_data)
+
+        # Call the function that sends data to Odoo (defined in odoo_routes.py)
+        # You could either directly use the function here or call an endpoint that does the job.
+        response = await send_data_to_odoo(odoo_data)
+
+        if response.get("status") == "success":
+            print(f"User created successfully with Staff ID: {response['staff_id']}")
+            return {"message": "User created successfully", "staff_id": response["staff_id"]}
+        else:
+            print("Error: Failed to create user in Odoo")
+            raise HTTPException(status_code=500, detail="Failed to create user in Odoo")
+
+    except Exception as e:
+        print(f"Exception occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def send_data_to_odoo(data):
+    url = "https://odoo-custom-production.up.railway.app"
+    db = "odoo_database"
+    username = "odoo_user"
+    password = "shuwafF2016"
+
+    try:
+        # Authenticate
+        print("Authenticating with Odoo...")
+        common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
+        uid = common.authenticate(db, username, password, {})
+        print(f"Authenticated with UID: {uid}")
+
+        # Interact with Odoo models
+        print("Creating staff in Odoo...")
+        models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
+        staff_id = models.execute_kw(
+            db, uid, password,
+            'hr.employee', 'create', [data]
+        )
+
+        print(f"Staff created successfully with ID: {staff_id}")
+        return {"status": "success", "staff_id": staff_id}
+
+    except Exception as e:
+        print(f"Error while sending data to Odoo: {str(e)}")
+        return {"status": "error", "message": str(e)}
+    
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
     # Ensure the uploaded file is an image
