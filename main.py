@@ -903,7 +903,6 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except Exception as e:
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
-
 @app.post("/add-user")
 async def add_user(request: Request):
     try:
@@ -923,9 +922,13 @@ async def add_user(request: Request):
         odoo_data = {
             "name": user_data.name,
             "email": user_data.email,
-            "login": user_data.email,  # Always set login as email
+            "login": user_data.email,  # Set login as email
             "role": user_data.role,    # This will be used to fetch the group ID
         }
+
+        # Debugging the login field
+        if not odoo_data["login"]:
+            raise HTTPException(status_code=400, detail="Login field is missing or empty.")
 
         print("📤 Sending to Odoo:", odoo_data)
 
@@ -1007,6 +1010,7 @@ async def add_user(request: Request):
     except Exception as e:
         print("🚨 Exception occurred:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
                     
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
