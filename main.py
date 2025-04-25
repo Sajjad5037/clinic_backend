@@ -84,7 +84,6 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 class UserData(BaseModel):
     name: str
-    login: str
     email: str
     role: str  # Assuming 'role' is a string for now; adjust as per your requirements
     clinic_name: str
