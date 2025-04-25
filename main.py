@@ -13,6 +13,7 @@ import asyncio
 from typing import List,Dict,Set,Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query,UploadFile,File
 import json
+from odoo_routes import router as odoo_router 
 import time
 import uuid  # For generating unique tokens
 import os
