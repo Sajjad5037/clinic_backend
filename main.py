@@ -941,24 +941,23 @@ async def add_user(request: Request):
         models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
         # Step 4.1: Search for the company (clinic) by clinic name
-        company_id = models.execute_kw(
+        company_ids = models.execute_kw(
             db, uid, password,
             'res.company', 'search',
-            [[['name', '=', user_data.clinic_name]]],  # Search for company by clinic name
+            [[['name', '=', user_data.clinic_name]]],
             {'limit': 1}
         )
 
-        # If the company doesn't exist, create it
-        if not company_id:
+        if company_ids:
+            company_id = company_ids[0]
+            print(f"✅ Company '{user_data.clinic_name}' found in Odoo with ID: {company_id}")
+        else:
             company_id = models.execute_kw(
                 db, uid, password,
                 'res.company', 'create',
-                [{'name': user_data.clinic_name}]  # Create company if it doesn't exist
+                [{'name': user_data.clinic_name}]
             )
-            print(f"✅ Company '{user_data.clinic_name}' created in Odoo with ID: {company_id[0]}")
-        else:
-            company_id = company_id[0]  # Get the first match (if exists)
-            print(f"✅ Company '{user_data.clinic_name}' found in Odoo with ID: {company_id}")
+            print(f"✅ Company '{user_data.clinic_name}' created in Odoo with ID: {company_id}")
 
         # Step 4.2: Fetch the group ID for the specified role (e.g., "admin")
         group_ids = models.execute_kw(
