@@ -975,7 +975,6 @@ async def add_user(request: Request):
             'res.users', 'create',
             [{
                 'name': user_data.name,
-                'login': user_data.login,  # Now correctly associated with 'res.users'
                 'email': user_data.email,
                 'groups_id': [[6, 0, group_ids]],  # Assign the role using the group ID(s)
                 'company_id': company_id,  # Associate the user with the company (clinic)
