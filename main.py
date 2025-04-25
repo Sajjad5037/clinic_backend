@@ -921,7 +921,6 @@ async def add_user(request: Request):
         # 🛠️ Step 3: Prepare data for Odoo
         odoo_data = {
             "name": user_data.name,
-            "login": user_data.login,
             "email": user_data.email,
             "role": user_data.role,
         }
@@ -958,13 +957,29 @@ async def add_user(request: Request):
                 [{'name': user_data.clinic_name}]  # Create department if it doesn't exist
             )
 
-        # Step 4.2: Add the department_id to the Odoo data
-        odoo_data["department_id"] = department_id
+        # Step 4.2: Create the user in 'res.users' for login
+        user_id = models.execute_kw(
+            db, uid, password,
+            'res.users', 'create',
+            [{
+                'name': user_data.name,
+                'login': user_data.login,  # Now correctly associated with 'res.users'
+                'email': user_data.email,
+                'groups_id': [[6, 0, [user_data.role]]],  # Optional, assign the user group (role)
+            }]
+        )
+        print(f"✅ User created in Odoo with ID: {user_id}")
 
-        # Step 5: Create the employee in Odoo
+        # Step 5: Create the employee in 'hr.employee' and link it to the user
+        employee_data = {
+            'name': user_data.name,
+            'department_id': department_id,
+            'user_id': user_id,  # Link the employee to the created user
+        }
+
         staff_id = models.execute_kw(
             db, uid, password,
-            'hr.employee', 'create', [odoo_data]
+            'hr.employee', 'create', [employee_data]
         )
 
         print("✅ Staff created in Odoo with ID:", staff_id)
@@ -973,7 +988,7 @@ async def add_user(request: Request):
     except Exception as e:
         print("🚨 Exception occurred:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-        
+            
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
     # Ensure the uploaded file is an image
