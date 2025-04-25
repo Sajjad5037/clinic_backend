@@ -932,8 +932,9 @@ async def add_user(request: Request):
         # 🌐 Step 4: Odoo credentials and server setup
         url = "https://odoo-custom-production.up.railway.app"
         db = "odoo_database"
-        username = "odoo_user"
-        password = "shuwafF2016"
+        username = "proactive1@live.com"  # Correct username for XML-RPC
+        password = "rubabB121024"  # Correct password for XML-RPC
+
 
         # 🔐 Authenticate
         common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
