@@ -924,7 +924,6 @@ async def add_user(request: Request):
             "login": user_data.login,
             "email": user_data.email,
             "role": user_data.role,
-            "clinic_name": user_data.clinic_name,
         }
 
         print("📤 Sending to Odoo:", odoo_data)
@@ -935,7 +934,6 @@ async def add_user(request: Request):
         username = "proactive1@live.com"  # Correct username for XML-RPC
         password = "rubabB121024"  # Correct password for XML-RPC
 
-
         # 🔐 Authenticate
         common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
         uid = common.authenticate(db, username, password, {})
@@ -943,6 +941,27 @@ async def add_user(request: Request):
 
         # 📦 Send data to Odoo
         models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
+
+        # Step 4.1: Fetch or create the department (clinic) for the user
+        department_id = models.execute_kw(
+            db, uid, password,
+            'hr.department', 'search',
+            [[['name', '=', user_data.clinic_name]]],  # Search for department by clinic name
+            {'limit': 1}
+        )
+
+        # If the department doesn't exist, create it
+        if not department_id:
+            department_id = models.execute_kw(
+                db, uid, password,
+                'hr.department', 'create',
+                [{'name': user_data.clinic_name}]  # Create department if it doesn't exist
+            )
+
+        # Step 4.2: Add the department_id to the Odoo data
+        odoo_data["department_id"] = department_id
+
+        # Step 5: Create the employee in Odoo
         staff_id = models.execute_kw(
             db, uid, password,
             'hr.employee', 'create', [odoo_data]
