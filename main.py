@@ -983,7 +983,7 @@ async def add_user(request: Request):
         # Step 5: Create the employee in 'hr.employee' and link it to the user
         employee_data = {
             'name': user_data.name,
-            'department_id': department_id,
+            'department_id': department_id[0] if department_id else False,  # Ensure it's a single integer
             'user_id': user_id,  # Link the employee to the created user
         }
 
@@ -998,7 +998,7 @@ async def add_user(request: Request):
     except Exception as e:
         print("🚨 Exception occurred:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-                
+                    
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
     # Ensure the uploaded file is an image
