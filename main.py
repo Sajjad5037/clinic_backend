@@ -923,7 +923,7 @@ async def add_user(request: Request):
         odoo_data = {
             "name": user_data.name,
             "email": user_data.email,
-            "login": user_data.email,  # Add this line
+            "login": user_data.email,  # Always set login as email
             "role": user_data.role,    # This will be used to fetch the group ID
         }
 
@@ -962,15 +962,18 @@ async def add_user(request: Request):
             )
             print(f"✅ Company '{user_data.clinic_name}' created in Odoo with ID: {company_id}")
 
-        # Step 4.2: Fetch the group ID for the specified role (e.g., "admin")
+        # Step 4.2: Fetch the group ID for the specified role (e.g., "Internal User")
         group_ids = models.execute_kw(
             db, uid, password,
             'res.groups', 'search',
-            [[['name', '=', user_data.role]]],  # Search for group by role name (e.g., "admin")
+            [[['name', '=', user_data.role]]],  # Search for group by role name (e.g., "Internal User")
         )
 
         if not group_ids:
+            print(f"🔴 Role '{user_data.role}' not found in Odoo.")
             raise HTTPException(status_code=404, detail=f"Role '{user_data.role}' not found in Odoo")
+
+        print(f"✅ Role '{user_data.role}' found in Odoo with ID(s): {group_ids}")
 
         # Step 4.3: Create the user in 'res.users' for login
         user_id = models.execute_kw(
@@ -979,6 +982,7 @@ async def add_user(request: Request):
             [{
                 'name': user_data.name,
                 'email': user_data.email,
+                'login': user_data.email,  # Ensure the login is being passed correctly
                 'groups_id': [[6, 0, group_ids]],  # Assign the role using the group ID(s)
                 'company_id': company_id,  # Associate the user with the company (clinic)
             }]
