@@ -85,8 +85,10 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 class UserData(BaseModel):
     name: str
     email: str
-    role: str  # Assuming 'role' is a string for now; adjust as per your requirements
+    login: str  # 🔑 Add this field to avoid runtime errors
+    role: str
     clinic_name: str
+
 
 class PDFFile(Base):
     __tablename__ = "pdfs"
@@ -921,7 +923,8 @@ async def add_user(request: Request):
         odoo_data = {
             "name": user_data.name,
             "email": user_data.email,
-            "role": user_data.role,  # This will be used to fetch the group ID
+            "login": user_data.email,  # Add this line
+            "role": user_data.role,    # This will be used to fetch the group ID
         }
 
         print("📤 Sending to Odoo:", odoo_data)
