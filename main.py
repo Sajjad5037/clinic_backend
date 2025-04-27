@@ -2283,21 +2283,18 @@ async def chat(request: ChatRequestRK):
         # Sending request to OpenAI API
         print("Sending request to OpenAI API...")
 
-        # Use openai.ChatCompletion.create directly, ensure you're using the correct API endpoint
+                # Use the correct model and prompt format
         try:
-            chat_completion = openai.ChatCompletion.create(
-                model="gpt-4",  # Replace "gpt-4o-mini" with the correct model name (gpt-4)
-                temperature=0.2,
-                messages=[system_message, user_message]
+            chat_completion = openai.completions.create(
+                model="gpt-4o-mini",  # Or your desired model
+                messages=[system_message, user_message], 
+                temperature=0.2
             )
         except Exception as api_error:
             print(f"OpenAI API error: {api_error}")
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
-        # Debugging: Print the response from OpenAI
-        print(f"Response from OpenAI: {chat_completion}")
-
-        # Extract the reply from the response
+        # Extract and return the response
         bot_reply = chat_completion['choices'][0]['message']['content']
 
         # Debugging: Print the bot's reply
