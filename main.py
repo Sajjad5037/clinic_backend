@@ -2244,56 +2244,58 @@ def is_relevant_to_neurology(user_input):
     return False  # Default to blocking ambiguous inputs
 #chatapi for Rafis Kitchen
 @app.post("/api/chatRK")
-async def chat(request: ChatRequestRK):
-    message = request.message
-    
-    # Print the incoming message for debugging
-    print(f"Received message: {message}")
-    
-    # If no message is provided, return a 400 error
+async def chat(message: str):
     if not message:
-        print("Error: No message provided in the request body.")
-        raise HTTPException(status_code=400, detail="Missing message in request body.")
-    
-    # Define the system message that helps guide the chatbot's responses
-    system_message = {
-        'role': 'system', 
-        'content': (
-            "You are a virtual assistant for a restaurant named Rafis Kitchen. "
-            "Your role is strictly limited to answering questions about:\n"
-            "- The restaurant is located in America.\n"
-            "If the user asks about *anything else* (e.g., cooking, entertainment, religion, technology, etc.), "
-            "you MUST respond exactly with:\n"
-            "'I'm sorry, but I can only assist with restaurant-related questions or information related to Rafis Kitchen.'\n"
-            "Do NOT provide any other information outside of this scope."
-        )
-    }
-
-    print("Sending request to OpenAI API...")
+        print("Error: Missing message in request body.")
+        return JSONResponse(content={"error": "Missing message in request body."}, status_code=400)
 
     try:
-        # Call OpenAI's API to generate a response
-        response = openai.ChatCompletion.create(
-            model='gpt-4',  # or gpt-4o-mini depending on your configuration
+        # Debugging: Print the received message
+        print(f"Received message: {message}")
+
+        # Create system message for the assistant
+        system_message = {
+            'role': 'system',
+            'content': (
+                "You are a virtual assistant for a restaurant named Rafis Kitchen. "
+                "Your role is strictly limited to answering questions about:\n"
+                "- The restaurant is located in America.\n"
+                "If the user asks about *anything else* (e.g., cooking, entertainment, religion, technology, etc.), "
+                "you MUST respond exactly with:\n"
+                "'I'm sorry, but I can only assist with restaurant-related questions or information related to Rafis Kitchen.'\n"
+                "Do NOT provide any other information outside of this scope."
+            )
+        }
+
+        # Debugging: Print the system message
+        print(f"System message: {system_message['content']}")
+
+        # Send the message to OpenAI API
+        print("Sending request to OpenAI API...")
+        response = openai.completions.create(
+            model='gpt-4',  # Or 'gpt-4o-mini' depending on your configuration
             messages=[
-                system_message,  # Add system prompt
-                {'role': 'user', 'content': message}  # User message
+                {"role": "system", "content": system_message['content']},
+                {"role": "user", "content": message}
             ]
         )
-        
-        # Print the OpenAI API response for debugging
-        print(f"OpenAI API response: {response}")
-        
-        # Extract the response and return it
-        reply = response.choices[0].message["content"].strip()
-        print(f"Generated reply: {reply}")
-        return {"reply": reply}
-    
+
+        # Debugging: Print response from OpenAI
+        print(f"Response from OpenAI: {response}")
+
+        # Extracting the reply
+        reply = response['choices'][0]['message']['content'].strip()
+
+        # Debugging: Print the final reply
+        print(f"Reply: {reply}")
+
+        return JSONResponse(content={"reply": reply})
+
     except Exception as e:
-        # Log the error and return a friendly message
+        # Debugging: Print the error if something goes wrong
         print(f"OpenAI API error: {e}")
-        raise HTTPException(status_code=500, detail="Oops, something went wrong on our end.")
-        
+        return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
+            
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
