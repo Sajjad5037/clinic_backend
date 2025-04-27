@@ -8,7 +8,6 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
 import openai
-import jsonify
 import xmlrpc.client
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
