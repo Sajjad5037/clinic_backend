@@ -2268,24 +2268,19 @@ async def chat(request: ChatRequestRK):
             )
         }
 
-        # Debugging: Print the system message
-        print(f"System message: {system_message['content']}")
-
-        # Send the message to OpenAI API
+        # Send the message to OpenAI API using the new interface (since openai>=1.0.0)
         print("Sending request to OpenAI API...")
-        response = openai.ChatCompletion.create(
+        response = openai.completions.create(
             model='gpt-4',  # Or 'gpt-4o-mini' depending on your configuration
-            messages=[
-                {"role": "system", "content": system_message['content']},
-                {"role": "user", "content": message}
-            ]
+            prompt=f"{system_message['content']}\nUser: {message}",
+            max_tokens=150
         )
 
         # Debugging: Print response from OpenAI
         print(f"Response from OpenAI: {response}")
 
         # Extracting the reply
-        reply = response['choices'][0]['message']['content'].strip()
+        reply = response['choices'][0]['text'].strip()
 
         # Debugging: Print the final reply
         print(f"Reply: {reply}")
@@ -2296,7 +2291,7 @@ async def chat(request: ChatRequestRK):
         # Debugging: Print the error if something goes wrong
         print(f"OpenAI API error: {e}")
         return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
-                
+                    
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
