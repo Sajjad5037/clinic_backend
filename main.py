@@ -2244,7 +2244,7 @@ def is_relevant_to_neurology(user_input):
     return False  # Default to blocking ambiguous inputs
 #chatapi for Rafis Kitchen
 @app.post("/api/chatRK")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequestRK):
     message = request.message
     if not message:
         print("Error: Missing message in request body.")
