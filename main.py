@@ -2248,7 +2248,7 @@ async def chat(request: ChatRequestRK):
     message = request.message
     if not message:
         print("Error: Missing message in request body.")
-        return JSONResponse(content={"error": "Missing message in request body."}, status_code=400)
+        return {"error": "Missing message in request body."}, 400
 
     try:
         # Debugging: Print the received message
@@ -2268,33 +2268,26 @@ async def chat(request: ChatRequestRK):
             )
         }
 
-        # Debugging: Print the system message
-        print(f"System message: {system_message['content']}")
-
         # Create the user message object
         user_message = {
             'role': 'user',
             'content': message
         }
 
-        # Debugging: Print the user message
-        print(f"User message: {user_message['content']}")
-
-        # Sending request to OpenAI API
+        # Sending request to OpenAI API using the updated method for new API versions
         print("Sending request to OpenAI API...")
 
-                # Use the correct model and prompt format
         try:
-            chat_completion = openai.completions.create(
-                model="gpt-4o-mini",  # Or your desired model
-                messages=[system_message, user_message], 
-                temperature=0.2
+            chat_completion = openai.ChatCompletion.create(
+                model="gpt-4",  # Replace with your desired model (adjust version if needed)
+                temperature=0.2,
+                messages=[system_message, user_message]  # Correct parameter for chat models
             )
         except Exception as api_error:
             print(f"OpenAI API error: {api_error}")
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
-        # Extract and return the response
+        # Extract the reply from the response
         bot_reply = chat_completion['choices'][0]['message']['content']
 
         # Debugging: Print the bot's reply
@@ -2306,8 +2299,8 @@ async def chat(request: ChatRequestRK):
     except Exception as e:
         # Handle any unexpected errors
         print(f"Unexpected error: {e}")
-        return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
-                            
+        return {"error": "Oops, something went wrong on our end."}, 500
+                                
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
