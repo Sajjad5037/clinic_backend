@@ -2283,10 +2283,10 @@ async def chat(request: ChatRequestRK):
         # Sending request to OpenAI API
         print("Sending request to OpenAI API...")
 
-        # Using the client to call the chat API
+        # Use openai.ChatCompletion.create directly, ensure you're using the correct API endpoint
         try:
             chat_completion = openai.ChatCompletion.create(
-                model="gpt-4o-mini",  # Adjust the model as needed
+                model="gpt-4",  # Replace "gpt-4o-mini" with the correct model name (gpt-4)
                 temperature=0.2,
                 messages=[system_message, user_message]
             )
@@ -2310,7 +2310,7 @@ async def chat(request: ChatRequestRK):
         # Handle any unexpected errors
         print(f"Unexpected error: {e}")
         return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
-                        
+                            
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
