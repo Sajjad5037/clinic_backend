@@ -2378,8 +2378,9 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
         # OpenAI call
         try:
-            chat_completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+            # Use the updated client method for the new API version (openai>=1.0.0)
+            chat_completion = client.completions.create(  # Changed to `completions.create`
+                model="gpt-4",  # You can keep your "gpt-4o-mini" model if it's available in your OpenAI account
                 temperature=0.2,
                 messages=[system_message, user_message]
             )
@@ -2387,8 +2388,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
             print(f"OpenAI API error: {api_error}")
             raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
-        # Extract and return
-        bot_reply = chat_completion.choices[0].message.content
+        # Extract and return the response from the OpenAI API
+        bot_reply = chat_completion['choices'][0]['message']['content']  # Updated to match the new response structure
         api_usage_entry.request_count += 1
         db.commit()
 
