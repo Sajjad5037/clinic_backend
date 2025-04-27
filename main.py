@@ -2244,7 +2244,7 @@ def is_relevant_to_neurology(user_input):
     return False  # Default to blocking ambiguous inputs
 #chatapi for Rafis Kitchen
 @app.post("/api/chatRK")
-async def chat(request: ChatRequestRK):
+async def chat(request: ChatRequest):
     message = request.message
     if not message:
         print("Error: Missing message in request body.")
@@ -2268,30 +2268,49 @@ async def chat(request: ChatRequestRK):
             )
         }
 
-        # Send the message to OpenAI API using the new interface (since openai>=1.0.0)
+        # Debugging: Print the system message
+        print(f"System message: {system_message['content']}")
+
+        # Create the user message object
+        user_message = {
+            'role': 'user',
+            'content': message
+        }
+
+        # Debugging: Print the user message
+        print(f"User message: {user_message['content']}")
+
+        # Sending request to OpenAI API
         print("Sending request to OpenAI API...")
-        response = openai.completions.create(
-            model='gpt-4',  # Or 'gpt-4o-mini' depending on your configuration
-            prompt=f"{system_message['content']}\nUser: {message}",
-            max_tokens=150
-        )
 
-        # Debugging: Print response from OpenAI
-        print(f"Response from OpenAI: {response}")
+        # Using the client to call the chat API
+        try:
+            chat_completion = openai.ChatCompletion.create(
+                model="gpt-4o-mini",  # Adjust the model as needed
+                temperature=0.2,
+                messages=[system_message, user_message]
+            )
+        except Exception as api_error:
+            print(f"OpenAI API error: {api_error}")
+            raise HTTPException(status_code=500, detail="Failed to fetch response from OpenAI")
 
-        # Extracting the reply
-        reply = response['choices'][0]['text'].strip()
+        # Debugging: Print the response from OpenAI
+        print(f"Response from OpenAI: {chat_completion}")
 
-        # Debugging: Print the final reply
-        print(f"Reply: {reply}")
+        # Extract the reply from the response
+        bot_reply = chat_completion['choices'][0]['message']['content']
 
-        return JSONResponse(content={"reply": reply})
+        # Debugging: Print the bot's reply
+        print(f"Bot's reply: {bot_reply}")
+
+        # Returning the response
+        return {"reply": bot_reply}
 
     except Exception as e:
-        # Debugging: Print the error if something goes wrong
-        print(f"OpenAI API error: {e}")
+        # Handle any unexpected errors
+        print(f"Unexpected error: {e}")
         return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
-                    
+                        
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
