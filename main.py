@@ -7,12 +7,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import UUID,JSONB
 import uvicorn
+import openai
+import jsonify
 import xmlrpc.client
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from typing import List,Dict,Set,Optional
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query,UploadFile,File
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect,Request,Body,Response,Query,UploadFile,File,request
 import json
 import time
 import uuid  # For generating unique tokens
@@ -42,6 +44,7 @@ import boto3
 
 
 # Fetch the API key from environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY_S")# for rafis kitchen
 openai_api_key = os.getenv("OPENAI_API_KEY_S")
 # In-memory system prompt cache (per user)
 system_prompt_cache = {}
@@ -82,6 +85,8 @@ clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+class ChatRequestRK(BaseModel): # for Rafis Kitchen
+    message: str
 class UserData(BaseModel):
     name: str
     email: str
@@ -511,7 +516,8 @@ origins = [
     "http://localhost:3000",
     "https://class-management-system-new.web.app",
     "https://sajjadalinoor.vercel.app",
-    "https://hospital-management-sys-pk.web.app"
+    "https://hospital-management-sys-pk.web.app",
+    "https://rafis-kitchen.vercel.app"
 ]
 
 
@@ -2237,7 +2243,58 @@ def is_relevant_to_neurology(user_input):
     if any(word in user_input for word in relevant_keywords):
         return True  # Allow input
     return False  # Default to blocking ambiguous inputs
+#chatapi for Rafis Kitchen
+@app.post("/api/chatRK")
+async def chat(request: ChatRequestRK):
+    message = request.message
+    
+    # Print the incoming message for debugging
+    print(f"Received message: {message}")
+    
+    # If no message is provided, return a 400 error
+    if not message:
+        print("Error: No message provided in the request body.")
+        raise HTTPException(status_code=400, detail="Missing message in request body.")
+    
+    # Define the system message that helps guide the chatbot's responses
+    system_message = {
+        'role': 'system', 
+        'content': (
+            "You are a virtual assistant for a restaurant named Rafis Kitchen. "
+            "Your role is strictly limited to answering questions about:\n"
+            "- The restaurant is located in America.\n"
+            "If the user asks about *anything else* (e.g., cooking, entertainment, religion, technology, etc.), "
+            "you MUST respond exactly with:\n"
+            "'I'm sorry, but I can only assist with restaurant-related questions or information related to Rafis Kitchen.'\n"
+            "Do NOT provide any other information outside of this scope."
+        )
+    }
 
+    print("Sending request to OpenAI API...")
+
+    try:
+        # Call OpenAI's API to generate a response
+        response = openai.ChatCompletion.create(
+            model='gpt-4',  # or gpt-4o-mini depending on your configuration
+            messages=[
+                system_message,  # Add system prompt
+                {'role': 'user', 'content': message}  # User message
+            ]
+        )
+        
+        # Print the OpenAI API response for debugging
+        print(f"OpenAI API response: {response}")
+        
+        # Extract the response and return it
+        reply = response.choices[0].message["content"].strip()
+        print(f"Generated reply: {reply}")
+        return {"reply": reply}
+    
+    except Exception as e:
+        # Log the error and return a friendly message
+        print(f"OpenAI API error: {e}")
+        raise HTTPException(status_code=500, detail="Oops, something went wrong on our end.")
+        
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
