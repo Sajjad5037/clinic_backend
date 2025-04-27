@@ -2244,7 +2244,8 @@ def is_relevant_to_neurology(user_input):
     return False  # Default to blocking ambiguous inputs
 #chatapi for Rafis Kitchen
 @app.post("/api/chatRK")
-async def chat(message: str):
+async def chat(request: ChatRequestRK):
+    message = request.message
     if not message:
         print("Error: Missing message in request body.")
         return JSONResponse(content={"error": "Missing message in request body."}, status_code=400)
@@ -2272,7 +2273,7 @@ async def chat(message: str):
 
         # Send the message to OpenAI API
         print("Sending request to OpenAI API...")
-        response = openai.completions.create(
+        response = openai.ChatCompletion.create(
             model='gpt-4',  # Or 'gpt-4o-mini' depending on your configuration
             messages=[
                 {"role": "system", "content": system_message['content']},
@@ -2295,7 +2296,7 @@ async def chat(message: str):
         # Debugging: Print the error if something goes wrong
         print(f"OpenAI API error: {e}")
         return JSONResponse(content={"error": "Oops, something went wrong on our end."}, status_code=500)
-            
+                
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
