@@ -725,11 +725,11 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         initial_state = {
             "type": "update_state",
             "data": {
-                "patients": session_data.get("patients", []),
-                "currentPatient": session_data.get("current_patient", None),
+                "patients": session_data["patients"],
+                "currentPatient": session_data["current_patient"],
                 "averageInspectionTime": state.get_average_time(session_token),
                 "session_token": session_token,
-                "notices": session_data.get("notices", [])
+                "notices": session_data["notices"]
             }
         }
         await websocket.send_text(json.dumps(initial_state))
