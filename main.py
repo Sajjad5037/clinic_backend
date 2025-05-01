@@ -908,6 +908,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except Exception as e:
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
+
 @app.post("/add-user")
 async def add_user(request: Request):
     try:
