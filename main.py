@@ -702,6 +702,7 @@ async def upload_pdf(pdf: UploadFile = File(...)):
 
     pdf_url = generate_pdf_url(BUCKET_NAME, unique_filename)
     return JSONResponse(status_code=200, content={"message": "Upload successful", "pdfUrl": pdf_url})
+
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
@@ -908,6 +909,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     except Exception as e:
         error_message = f"Unexpected error: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
+
 
 @app.post("/add-user")
 async def add_user(request: Request):
