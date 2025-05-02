@@ -703,6 +703,53 @@ async def upload_pdf(pdf: UploadFile = File(...)):
     pdf_url = generate_pdf_url(BUCKET_NAME, unique_filename)
     return JSONResponse(status_code=200, content={"message": "Upload successful", "pdfUrl": pdf_url})
 
+@app.websocket("/ws/public/{session_token}/{public_token}")
+async def public_websocket_endpoint(websocket: WebSocket, session_token: str, public_token: str):
+    try:
+        # Debug: Print the received tokens
+        print(f"WebSocket connection attempt with session_token: {session_token}, public_token: {public_token}")
+        
+        # Retrieve session data using the session token
+        session_data = state.get_session(session_token)  
+
+        # Ensure the public token matches the one in session data
+        if session_data.get("public_token") != public_token:
+            print(f"Token mismatch: {public_token} != {session_data.get('public_token')}")
+            await websocket.close(code=1008)  # Policy violation: close connection
+            return
+        
+        # Add WebSocket connection to the public manager
+        await public_manager.connect(websocket, session_token)
+        print(f"WebSocket connected for session_token: {session_token}")
+
+        # Send initial state to the client
+        initial_state = {
+            "type": "update_state",
+            "data": state.get_public_state(session_token)  # Use session_token for state retrieval
+        }
+        print(f"Sending initial state to client: {initial_state}")
+        await websocket.send_text(json.dumps(initial_state))
+
+        # Keep listening for messages
+        while True:
+            try:
+                message = await websocket.receive_text()
+                print(f"Received from client: {message}")
+
+            except WebSocketDisconnect as e:
+                print(f"Client disconnected: Code {e.code}, Reason: {e.reason}")
+                break  
+
+            except Exception as e:
+                print(f"Error receiving message: {e}")
+
+    except Exception as e:
+        print(f"Unexpected WebSocket error: {e}")
+    finally:
+        await public_manager.disconnect(websocket, session_token)
+        print(f"Client removed from public manager for session_token: {session_token}")
+
+
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
