@@ -1165,7 +1165,36 @@ async def public_websocket_endpoint(
          
     
 
+@app.get("/dashboard/public-token")
+def get_public_token(session_token: str = Query(...)):
+    print(f"Session Token Requested: {session_token}")
 
+    # Retrieve session from the database
+    session = db.query(SessionModel).filter(SessionModel.session_token == uuid.UUID(session_token)).first()
+
+    if not session:
+        print("Session Not Found")
+        return {"error": "Session not found", "sessionToken": session_token}
+
+    # Generate and store a new public token if not present
+    if not session.public_token:
+        session.public_token = str(uuid.uuid4())
+        db.commit()
+        print(f"Generated new public token: {session.public_token}")
+
+    public_token = session.public_token
+
+    # --- 🔄 Update in-memory session state ---
+    session_data = state.get_session(session_token) or {}
+    session_data["public_token"] = public_token
+    state.set_session(session_token, session_data)
+    print(f"In-memory state updated with public_token: {public_token}")
+
+    return {
+        "sessionToken": session_token,
+        "publicToken": public_token
+    }
+"""
 # HTTP endpoint to get the public token (for the doctor to share)
 @app.get("/dashboard/public-token")
 def get_public_token(session_token: str = Query(...)):  # Required query param
@@ -1187,7 +1216,7 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
         "sessionToken": session_token,
         "publicToken": public_token
     }
-
+"""
 
 @app.websocket("/ws/OrderManager/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
