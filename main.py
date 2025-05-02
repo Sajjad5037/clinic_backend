@@ -1092,7 +1092,7 @@ async def extract_text(image: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing image: {e}")
 
     return JSONResponse(status_code=200, content={"extractedText": extracted_text})
-"""
+
 @app.websocket("/ws/public/{session_token}/{public_token}")
 async def public_websocket_endpoint(
     websocket: WebSocket,
@@ -1162,8 +1162,8 @@ async def public_websocket_endpoint(
     finally:
         await public_manager.disconnect(websocket, session_token)
         print(f"🔻 Removed from WebSocket manager: session_token={session_token}\n")
-        till here 
-    """
+         
+    
 
 
 # HTTP endpoint to get the public token (for the doctor to share)
