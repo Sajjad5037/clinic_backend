@@ -1252,20 +1252,25 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
             elif message["type"] == "add_item":
                 print("Received add_item message:", message)
                 session_token_current = message.get("session_token")
+
                 # Add the item using the LiveUpdateState method
                 OrderManager_state.add_item(session_token_current, message.get("item", ""))
+                
+                # Safely get session data
                 session_data = OrderManager_state.get_session(session_token_current)
+
                 update = {
                     "type": "update_state",
                     "data": {
-                        "preparingList": session_data["preparingList"],
-                        "servingList": session_data["servingList"],
-                        "notices": session_data["notices"],
+                        "preparingList": session_data.get("preparingList", []),
+                        "servingList": session_data.get("servingList", []),
+                        "notices": session_data.get("notices", []),
                         "session_token": session_token_current
                     }
                 }
                 await manager.broadcast_to_session(session_token_current, update)
                 await public_manager.broadcast_to_session(session_token_current, update)
+                
             elif message["type"] == "mark_done":
                 session_token_current = message.get("session_token")
                 selected_index = message.get("index")
