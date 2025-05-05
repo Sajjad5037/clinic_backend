@@ -947,7 +947,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        await manager.disconnect(websocket, session_token)
+        manager.disconnect(websocket, session_token)
 
         # Remove session state after disconnect
         if session_token in session_states:
