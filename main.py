@@ -761,8 +761,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         return
 
     # Ensure each session gets its own independent state
-    if session_token not in session_states:
-        session_states[session_token] = DashboardState()  # Create a new state for this session
+    if session_token not in session_states or not isinstance(session_states[session_token], DashboardState):
+        session_states[session_token] = DashboardState()
+
     state = session_states[session_token]  # Get the state for this session
     session_data = state.get_session(session_token)  # Get the session data
     # Add WebSocket connection to the manager based on session token
@@ -947,7 +948,7 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
 
     except WebSocketDisconnect as e:
         print(f"Client disconnected: Code {e.code}, Reason: {str(e)}")
-        manager.disconnect(websocket, session_token)
+        manager.disconnect(websocket, session_token)  # No await here
 
         # Remove session state after disconnect
         if session_token in session_states:
@@ -1200,8 +1201,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
         return
 
     # Ensure each session gets its own independent state
-    if session_token not in session_states:
-        session_states[session_token] = OrderManagerState()  # Create a new state for this session
+    if session_token not in session_states or not isinstance(session_states[session_token], OrderManagerState):
+        session_states[session_token] = OrderManagerState()
+
     OrderManager_state = session_states[session_token]  # Get the state for this session
     session_data = OrderManager_state.get_session(session_token)  # Get the session data
     # Add WebSocket connection to the manager based on session token
