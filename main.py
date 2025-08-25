@@ -517,7 +517,7 @@ origins = [
     "https://sajjadalinoor.vercel.app",
     "https://hospital-management-sys-pk.web.app",
     "https://rafis-kitchen.vercel.app",
-    "https://ai-social-campaign.vercel.app/"
+    "https://ai-social-campaign.vercel.app"
 ]
 
 
