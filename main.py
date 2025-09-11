@@ -518,6 +518,7 @@ origins = [
     "https://hospital-management-sys-pk.web.app",
     "https://rafis-kitchen.vercel.app",
     "https://ai-social-campaign.vercel.app",
+    "https://ibne-sina.vercel.app",
     "https://anz-way.vercel.app"   # newly added frontend
 ]
 
