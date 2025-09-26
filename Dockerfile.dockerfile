@@ -1,29 +1,26 @@
-# Use an official Python image as the base image
+# Use an official lightweight Python image
 FROM python:3.9-slim
 
-# Set environment variables to avoid the Python startup warning
-ENV PYTHONUNBUFFERED 1
+# Avoid Python buffering issues
+ENV PYTHONUNBUFFERED=1
 
-# Install required dependencies: gcc, PostgreSQL client, etc.
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y gcc libpq-dev postgresql-client && \
-    apt-get clean
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
+# Copy project files
 COPY . /app/
 
-# Install the Python dependencies from the requirements.txt file
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port your app runs on (adjust as needed)
+# Expose the port the app will run on
 EXPOSE 8000
 
-# Command to run the application (adjust the command to your app)
+# Run the FastAPI app with Uvicorn, using Railway's dynamic port
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
-
-
-
-
