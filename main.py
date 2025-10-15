@@ -520,7 +520,8 @@ origins = [
     "https://ai-social-campaign.vercel.app",
     "https://ibne-sina.vercel.app",
     "https://a-level-exam-preparation.vercel.app",
-    "https://anz-way.vercel.app"   # newly added frontend
+    "https://anz-way.vercel.app",   # newly added frontend
+    "https://krish-chat-bot.vercel.app"  # added URL
 ]
 
 
