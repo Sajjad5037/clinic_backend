@@ -2464,6 +2464,40 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+
+@app.get("/get-doctor-username")
+def get_doctor_username(session_token: str = Query(...), db: Session = Depends(get_db)):
+    """
+    Returns the doctor's username associated with a given session token.
+    """
+    print("DEBUG: /get-doctor-username called")
+    print(f"DEBUG: Received session_token: {session_token}")
+
+    # Look up the session using the session_token
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if not session:
+        print(f"WARNING: No session found for session_token: {session_token}")
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    print(f"DEBUG: Session found: id={session.id}, doctor_id={session.doctor_id}")
+
+    # Look up the doctor using doctor_id from session
+    doctor = db.query(Doctor).filter(Doctor.id == session.doctor_id).first()
+    if not doctor:
+        print(f"WARNING: No doctor found for doctor_id: {session.doctor_id}")
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    print(f"DEBUG: Doctor found: username={doctor.username}")
+
+    response = {"username": doctor.username}
+    print(f"DEBUG: Returning response: {response}")
+
+    return response
+
+
+
+
+
 """
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):  # Inject DB session
