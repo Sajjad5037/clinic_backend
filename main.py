@@ -2179,13 +2179,19 @@ def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid session")
     return {"doctor_id": session.doctor_id}
 
+
+
+
+
 @app.get("/doctors/{doctor_id}", response_model=DoctorResponse)
+    
 def get_doctor_by_id(doctor_id: int, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
     
     return doctor
+    
 @app.get("/get-doctor-name/{doctor_id}")
 def get_doctor_name(doctor_id: int, db: Session = Depends(get_db)):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
@@ -2464,35 +2470,23 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-
 @app.get("/get-doctor-username")
 def get_doctor_username(session_token: str = Query(...), db: Session = Depends(get_db)):
     """
     Returns the doctor's username associated with a given session token.
     """
-    print("DEBUG: /get-doctor-username called")
-    print(f"DEBUG: Received session_token: {session_token}")
-
     # Look up the session using the session_token
     session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
     if not session:
-        print(f"WARNING: No session found for session_token: {session_token}")
         raise HTTPException(status_code=404, detail="Session not found")
-
-    print(f"DEBUG: Session found: id={session.id}, doctor_id={session.doctor_id}")
 
     # Look up the doctor using doctor_id from session
     doctor = db.query(Doctor).filter(Doctor.id == session.doctor_id).first()
     if not doctor:
-        print(f"WARNING: No doctor found for doctor_id: {session.doctor_id}")
         raise HTTPException(status_code=404, detail="Doctor not found")
 
-    print(f"DEBUG: Doctor found: username={doctor.username}")
-
-    response = {"username": doctor.username}
-    print(f"DEBUG: Returning response: {response}")
-
-    return response
+    # Return doctor username
+    return {"username": doctor.username}
 
 
 
