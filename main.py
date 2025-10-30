@@ -2172,13 +2172,17 @@ def generate_qr(public_token: str, session_token: str, db: Session = Depends(get
     
     return StreamingResponse(img_io, media_type="image/png")
 
-@app.get("/get-doctor-id/{session_token}")
-def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
-    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return {"doctor_id": session.doctor_id}
+@app.get("/get-doctor-id")
+def get_doctor_id(username: str = Query(...), db: Session = Depends(get_db)):
+    """
+    Returns the doctor's ID associated with a given username.
+    """
+    # Look up the doctor by username
+    doctor = db.query(Doctor).filter(Doctor.username == username).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
 
+    return {"doctor_id": doctor.id}
 
 
 
