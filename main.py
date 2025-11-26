@@ -1197,6 +1197,17 @@ def get_public_token(session_token: str = Query(...)):  # Required query param
         "publicToken": public_token
     }
 
+@app.get("/get-doctor-id/{session_token}")
+def get_doctor_id(session_token: str, db: Session = Depends(get_db)):
+    """
+    Given a session token, returns the associated doctor_id.
+    """
+    session_entry = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    
+    if not session_entry:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"doctor_id": session_entry.doctor_id}
 
 @app.websocket("/ws/OrderManager/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
