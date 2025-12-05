@@ -64,6 +64,7 @@ if not openai_api_key:
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
 secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-for-dev")
+vector_stores = {}
 
 # AWS S3 Configuration (Replace with your credentials)
 AWS_ACCESS_KEY_ID = "your-access-key-id"
