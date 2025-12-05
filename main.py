@@ -413,12 +413,19 @@ class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, index=True)
+
     session_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
+    public_token = Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
+
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"))
     is_authenticated = Column(Boolean, default=False)
-    public_token=Column(UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4)
 
-    doctor = relationship("Doctor", back_populates="sessions")  # Establish relationship
+    # 🔐 NEW — Password protection for the public chatbot link
+    require_password = Column(Boolean, default=False)
+    access_password = Column(String, nullable=True)  # hashed password
+
+    doctor = relationship("Doctor", back_populates="sessions")
+
 
 class APIUsageModel(Base):  # Tracks API usage per doctor
     __tablename__ = "api_usage"
