@@ -4,7 +4,7 @@ from sqlalchemy import DateTime
 from fastapi import Form
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
-from utils import chunk_text, embed_texts
+
 import hashlib
 import numpy as np
 from datetime import date
@@ -719,6 +719,25 @@ def get_db():
 def allowed_file(filename: str) -> bool:
     """Check if the file extension is allowed."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def chunk_text(text, chunk_size=500, overlap=50):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += chunk_size - overlap
+    return chunks
+
+
+def embed_texts(texts):
+    """Return list of embeddings for a list of texts using OpenAI embeddings"""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [np.array(e.embedding) for e in response.data]
+
 
 @app.post("/api/whatsapp-knowledge-base/upload")
 async def upload_pdf(
