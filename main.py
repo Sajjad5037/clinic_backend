@@ -2835,7 +2835,8 @@ def chat_whatsapp(
         print(f"[ERROR] No session found for public_token = {public_token}")
         raise HTTPException(status_code=404, detail="Invalid chatbot link")
 
-    user_id = session_record.user_id
+    doctor_id = session_record.doctor_id
+
     print("DEBUG: Session belongs to user_id =", user_id)
 
     # -----------------------------------------------------------
