@@ -84,6 +84,26 @@ clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+class KnowledgeBase(Base):
+    __tablename__ = "knowledgebases"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)  # associate with doctor
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class WhatsAppKnowledgeBase(Base):
+    __tablename__ = "WhatsAppknowledgebases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)        # associate with doctor
+    phone_number = Column(String(15), nullable=False)  # store phone number
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+
 class ChatRequestRK(BaseModel): # for Rafis Kitchen
     message: str
 class UserData(BaseModel):
@@ -692,10 +712,109 @@ def allowed_file(filename: str) -> bool:
     """Check if the file extension is allowed."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@app.post("/chatbot/validate-password")
+def validate_password(payload: dict, db: Session = Depends(get_db)):
+    print("\n========== DEBUG: /chatbot/validate-password CALLED ==========")
+    print("Incoming payload:", payload)
+
+    public_token = payload.get("public_token")
+    entered_password = payload.get("password")
+
+    print("Parsed values:")
+    print(" public_token =", public_token)
+    print(" entered_password =", entered_password)
+
+    bot = db.query(ChatbotLink).filter(
+        ChatbotLink.public_token == public_token
+    ).first()
+
+    print("DB chatbot fetched:", bot)
+
+    if not bot:
+        print("ERROR: Chatbot not found")
+        raise HTTPException(status_code=404, detail="Chatbot not found")
+
+    print("require_password =", bot.require_password)
+    print("stored hashed password =", bot.access_password)
+
+    # If NOT password protected → automatically allow
+    if not bot.require_password:
+        print("Chatbot doesn't require password → auto-allow access")
+        token = str(uuid4())
+        print("Generated chatAccessToken:", token)
+        print("========== /chatbot/validate-password END ==========\n")
+        return {"valid": True, "chatAccessToken": token}
+
+    # Password IS required → verify
+    if not entered_password:
+        print("ERROR: No password entered while required")
+        return {"valid": False}
+
+    print("Verifying entered password...")
+    is_valid = pwd_context.verify(entered_password, bot.access_password)
+
+    print("Password match result:", is_valid)
+
+    if not is_valid:
+        print("ERROR: Password is incorrect")
+        print("========== /chatbot/validate-password END ==========\n")
+        return {"valid": False}
+
+    # Correct password → generate session token
+    chat_token = str(uuid4())
+    print("Password correct → granted access")
+    print("Generated chatAccessToken:", chat_token)
+
+    print("========== /chatbot/validate-password END ==========\n")
+    return {"valid": True, "chatAccessToken": chat_token}
+
+
 def generate_pdf_url(bucket_name: str, filename: str) -> str:
     """Generate a public URL for the uploaded PDF from S3."""
     return f"https://{bucket_name}.s3.{AWS_REGION}.amazonaws.com/{filename}"
 
+
+
+@app.get("/chatbot/init/{public_token}")
+def chatbot_init(public_token: str, db: Session = Depends(get_db)):
+    print("\n========== DEBUG: /chatbot/init CALLED ==========")
+    print("Incoming public_token:", public_token)
+
+    # --------------------------------------------------------
+    # Fetch session record using the public_token
+    # --------------------------------------------------------
+    session_record = db.query(Session).filter(
+        Session.public_token == public_token
+    ).first()
+
+    print("DEBUG: Session lookup result:", session_record)
+
+    if not session_record:
+        print("ERROR: No session found with this public_token")
+        raise HTTPException(status_code=404, detail="Chatbot not found")
+
+    # --------------------------------------------------------
+    # Read password protection flags
+    # --------------------------------------------------------
+    requires_password = getattr(session_record, "require_password", False)
+    print("DEBUG: require_password =", requires_password)
+
+    if requires_password:
+        print("Chatbot IS password protected — requiresPassword=True")
+        print("========== /chatbot/init END ==========\n")
+        return {
+            "requiresPassword": True,
+            "publicToken": public_token
+        }
+
+    # Chatbot is public access
+    print("Chatbot is NOT password protected — requiresPassword=False")
+    print("========== /chatbot/init END ==========\n")
+
+    return {
+        "requiresPassword": False,
+        "publicToken": public_token
+    }
 @app.post("/uploadPdf")
 async def upload_pdf(pdf: UploadFile = File(...)):
     # Check if the uploaded file is a PDF
