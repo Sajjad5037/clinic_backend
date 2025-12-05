@@ -2820,6 +2820,67 @@ async def chat(request: ChatRequestRK):
         # Handle any unexpected errors
         print(f"Unexpected error: {e}")
         return {"error": "Oops, something went wrong on our end."}, 500
+
+@app.post("/api/chat-new")
+def chat(message: str = Body(...), user_id: int = Body(...), db: Session = Depends(get_db)):
+    print("==============================================")
+    print("[DEBUG] Entered /api/chat endpoint")
+    print(f"[DEBUG] user_id={user_id}, message='{message}'")
+    print(f"[DEBUG] db injected: {db}")
+    print(f"[DEBUG] db type: {type(db)}")
+
+    if db is None:
+        print("[ERROR] Database session is None! FastAPI did not inject a session.")
+        raise HTTPException(status_code=500, detail="Database session is None")
+
+    # --- Test DB connection properly ---
+    try:
+        _ = db.execute(text("SELECT 1")).fetchone()  # wrap raw SQL in text()
+        print("[DEBUG] Database connection test: OK ✅")
+    except Exception as e:
+        print(f"[ERROR] Database connection test failed: {e}")
+        raise HTTPException(status_code=500, detail="Database session invalid or closed")
+
+    # --- Fetch KB for this doctor ---
+    try:
+        print("[DEBUG] Querying KnowledgeBase for user_id:", user_id)
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.user_id == user_id).first()
+        print("[DEBUG] Query executed successfully.")
+    except Exception as e:
+        print(f"[ERROR] Query to KnowledgeBase failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Database query failed: {e}")
+
+    if not kb:
+        print(f"[WARNING] No knowledge base found for user_id={user_id}")
+        return {"reply": "Sorry, I have no knowledge to answer this yet."}
+
+    print(f"[DEBUG] Knowledge base retrieved: id={kb.id}, content_length={len(kb.content)}")
+
+    # --- Build prompt using doctor's KB ---
+    prompt = f"You are Dr. {user_id}. Answer the question concisely based on the knowledge below.\n\nKnowledge:\n{kb.content}\n\nUser: {message}\n\nInstructions: Provide a brief summary in 2-3 sentences. Avoid long paragraphs."
+
+    print(f"[DEBUG] Prompt length: {len(prompt)} characters")
+
+    # --- Call OpenAI API ---
+    try:
+        print("[DEBUG] Sending prompt to OpenAI API...")
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=500
+        )
+
+        bot_reply = response.choices[0].message.content
+        print(f"[DEBUG] Bot reply length: {len(bot_reply)} characters")
+
+        print("[DEBUG] Returning successful response ✅")
+        return {"reply": bot_reply}
+
+    except Exception as e:
+        print(f"[ERROR] OpenAI API call failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate reply from OpenAI")
+
                                 
 @app.post("/api/chat")
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
