@@ -2,6 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import DateTime
 from fastapi import Form
+from PyPDF2 import PdfReader
 
 from datetime import date
 from starlette.responses import JSONResponse
