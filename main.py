@@ -2124,71 +2124,120 @@ def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Doctor deleted successfully"}
 
-@app.get("/generate-qr/{public_token}/{session_token}")
-def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
-    # Validate session token
-    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
-    if not session:
-        return {"error": "Invalid session token"}
+# @app.get("/generate-qr/{public_token}/{session_token}")
+# def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
+#     # Validate session token
+#     session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+#     if not session:
+#         return {"error": "Invalid session token"}
     
-    # Generate shareable URL
-    shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
+#     # Generate shareable URL
+#     shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
     
-    # Generate QR Code
+#     # Generate QR Code
+#     try:
+#         font_path = os.path.join(os.path.dirname(__file__), "arial.ttf")
+#         qr = qrcode.make(shareable_url)
+#     except Exception:
+#         return {"error": "Failed to generate QR code"}
+    
+#     # Resize QR code
+#     try:
+#         qr = qr.resize((1200, 1200), Image.Resampling.LANCZOS)
+#     except Exception:
+#         return {"error": "Failed to resize QR code"}
+    
+#     final_height = 1200 + 150
+#     final_image = Image.new("RGB", (1200, final_height), "white")
+#     final_image.paste(qr, (0, 0))
+    
+#     draw = ImageDraw.Draw(final_image)
+    
+#     try:
+#         if not os.path.exists(font_path):
+#             raise FileNotFoundError(f"Font file not found at {font_path}")
+#         font = ImageFont.truetype(font_path, 100)
+#     except Exception:
+#         try:
+#             font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
+#         except Exception:
+#             font = ImageFont.load_default()
+    
+#     text = "Scan for Live Updates"
+#     text_bbox = draw.textbbox((0, 0), text, font=font)
+#     text_width = text_bbox[2] - text_bbox[0]
+#     text_height_calculated = text_bbox[3] - text_bbox[1]
+    
+#     text_x = (1200 - text_width) // 2
+#     text_y = 1200 + ((150 - text_height_calculated) // 2)
+    
+#     try:
+#         draw.text((text_x, text_y), text, fill="black", font=font)
+#     except Exception:
+#         return {"error": "Failed to add text to image"}
+    
+#     try:
+#         img_io = io.BytesIO()
+#         final_image.save(img_io, format="PNG")
+#         img_io.seek(0)
+#     except Exception:
+#         return {"error": "Failed to save final image"}
+    
+#     return StreamingResponse(img_io, media_type="image/png")
+
+@app.get("/generate-qr/{public_token}")
+def generate_qr(public_token: str):
+    print("\n========== DEBUG: /generate-qr CALLED ==========")
+    print("Incoming public_token:", public_token)
+
+    # Build public chatbot URL
+    shareable_url = f"https://chat-for-me-ai-login.vercel.app/chatbot?publicToken={public_token}"
+    print("Generated shareable_url:", shareable_url)
+
+    # Try generating QR code
     try:
-        font_path = os.path.join(os.path.dirname(__file__), "arial.ttf")
         qr = qrcode.make(shareable_url)
-    except Exception:
-        return {"error": "Failed to generate QR code"}
-    
-    # Resize QR code to 4x4 inches at 300 DPI (i.e., 1200x1200 pixels)
-    try:
         qr = qr.resize((1200, 1200), Image.Resampling.LANCZOS)
-    except Exception:
-        return {"error": "Failed to resize QR code"}
-    
-    # Create a new image with extra space for text (150 pixels extra height)
-    final_height = 1200 + 150  # 1200 for QR + 150 for text
+        print("QR code generated successfully.")
+    except Exception as e:
+        print("ERROR: Failed to create QR code:", e)
+        raise HTTPException(status_code=500, detail="Failed to generate QR code")
+
+    # Create final image with text
+    final_height = 1200 + 150
     final_image = Image.new("RGB", (1200, final_height), "white")
     final_image.paste(qr, (0, 0))
-    
-    # Add text below the QR code
+
     draw = ImageDraw.Draw(final_image)
-    
-    # Try to load a robust TrueType font
+
+    # Load font safely
     try:
-        if not os.path.exists(font_path):
-            raise FileNotFoundError(f"Font file not found at {font_path}")
-        font = ImageFont.truetype(font_path, 100)
-    except Exception:
-        try:
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
-        except Exception:
-            font = ImageFont.load_default()
-    
-    text = "Scan for Live Updates"
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
+    except:
+        font = ImageFont.load_default()
+
+    text = "Scan to Open Chatbot"
     text_bbox = draw.textbbox((0, 0), text, font=font)
     text_width = text_bbox[2] - text_bbox[0]
-    text_height_calculated = text_bbox[3] - text_bbox[1]
-    
-    # Center text horizontally, and vertically center in the extra space
+
     text_x = (1200 - text_width) // 2
-    text_y = 1200 + ((150 - text_height_calculated) // 2)
-    
+    text_y = 1220
+
+    draw.text((text_x, text_y), text, fill="black", font=font)
+    print("Text added under QR code.")
+
+    # Return PNG as StreamingResponse
     try:
-        draw.text((text_x, text_y), text, fill="black", font=font)
-    except Exception:
-        return {"error": "Failed to add text to image"}
-    
-    # Save the final image to a bytes buffer
-    try:
-        img_io = io.BytesIO()
-        final_image.save(img_io, format="PNG")
-        img_io.seek(0)
-    except Exception:
-        return {"error": "Failed to save final image"}
-    
-    return StreamingResponse(img_io, media_type="image/png")
+        img_buffer = io.BytesIO()
+        final_image.save(img_buffer, format="PNG")
+        img_buffer.seek(0)
+    except Exception as e:
+        print("ERROR: Failed to save image:", e)
+        raise HTTPException(status_code=500, detail="Failed to save image")
+
+    print("========== /generate-qr END ==========\n")
+    return StreamingResponse(img_buffer, media_type="image/png")
+
 
 @app.get("/get-doctor-id")
 def get_doctor_id(username: str = Query(...), db: Session = Depends(get_db)):
