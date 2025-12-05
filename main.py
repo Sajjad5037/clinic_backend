@@ -431,7 +431,7 @@ class Doctor(Base):
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
 
-class SessionModel(Base):  # Handles authentication sessions
+class Session(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, index=True)
