@@ -2837,7 +2837,7 @@ def chat_whatsapp(
 
     doctor_id = session_record.doctor_id
 
-    print("DEBUG: Session belongs to user_id =", user_id)
+    print("DEBUG: Session belongs to user_id =", doctor_id)
 
     # -----------------------------------------------------------
     # STEP 2 — Validate password if required
