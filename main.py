@@ -739,6 +739,57 @@ def embed_texts(texts):
     )
     return [np.array(e.embedding) for e in response.data]
 
+@app.post("/api/knowledge-base/upload")
+async def upload_pdf(
+    user_id: int = Form(...),  # Read doctor/user ID from frontend
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    print(f"[DEBUG] Received upload request: user_id={user_id}, filename={file.filename}, content_type={file.content_type}")
+    
+    # Extract text from PDF
+    try:
+        file_bytes = await file.read()
+        print(f"[DEBUG] Read {len(file_bytes)} bytes from uploaded file")
+        reader = PdfReader(io.BytesIO(file_bytes))
+        text = ""
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text() or ""
+            print(f"[DEBUG] Page {i+1}: extracted {len(page_text)} characters")
+            text += page_text
+    except Exception as e:
+        print(f"[ERROR] Failed to read PDF: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to read PDF: {e}")
+
+    if not text.strip():
+        print("[WARNING] PDF contains no readable text")
+        raise HTTPException(status_code=400, detail="PDF contains no readable text")
+
+    # Overwrite existing KB for the user if it exists
+    kb = db.query(KnowledgeBase).filter(KnowledgeBase.user_id == user_id).first()
+    if kb:
+        print(f"[DEBUG] Overwriting existing knowledge base for user_id={user_id}, kb_id={kb.id}")
+        kb.content = text
+    else:
+        kb = KnowledgeBase(user_id=user_id, content=text)
+        db.add(kb)
+
+    db.commit()
+    db.refresh(kb)
+    print(f"[DEBUG] Knowledge base saved: id={kb.id}, user_id={kb.user_id}, content_length={len(text)}")
+
+    # ----- Recreate temporary vector store -----
+    if user_id in vector_stores:
+        print(f"[DEBUG] Deleting existing temporary vector store for user_id={user_id}")
+        del vector_stores[user_id]
+
+    chunks = chunk_text(kb.content, chunk_size=500, overlap=50)
+    embeddings = embed_texts(chunks)
+    vector_stores[user_id] = {"chunks": chunks, "embeddings": np.array(embeddings)}
+    print(f"[DEBUG] New vector store created for user_id={user_id} with {len(chunks)} chunks")
+
+    return {"knowledge_base_id": kb.id, "message": "PDF content saved successfully and vector store rebuilt."}
+
 
 @app.post("/api/whatsapp-knowledge-base/upload")
 async def upload_pdf(
