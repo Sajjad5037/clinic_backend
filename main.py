@@ -2450,7 +2450,7 @@ def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Doctor deleted successfully"}
 
-# @app.get("/generate-qr/{public_token}/{session_token}")
+# @app.get("/generate-qr-old/{public_token}/{session_token}")
 # def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
 #     # Validate session token
 #     session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
