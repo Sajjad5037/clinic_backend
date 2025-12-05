@@ -542,6 +542,7 @@ class DoctorResponse(BaseModel):
 origins = [
     "https://clinic-management-system-27d11.web.app",
     "http://localhost:3000",
+    "https://chat-for-me-ai-login.vercel.app",
     "https://class-management-system-new.web.app",
     "https://sajjadalinoor.vercel.app",
     "https://hospital-management-sys-pk.web.app",
