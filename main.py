@@ -431,7 +431,7 @@ class Doctor(Base):
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
 
-class Session(Base):  # Handles authentication sessions
+class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -786,8 +786,8 @@ def chatbot_init(public_token: str, db: Session = Depends(get_db)):
     # --------------------------------------------------------
     # Fetch session record using the public_token
     # --------------------------------------------------------
-    session_record = db.query(Session).filter(
-        Session.public_token == public_token
+    session_record = db.query(SessionModel).filter(
+        SessionModel.public_token == public_token
     ).first()
 
     print("DEBUG: Session lookup result:", session_record)
