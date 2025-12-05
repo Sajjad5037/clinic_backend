@@ -886,6 +886,75 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
         print(f"Client removed from public manager for session_token: {session_token}")
 
 
+@app.post("/chatbot/settings")
+def update_chatbot_settings(payload: dict, db: Session = Depends(get_db)):
+    print("\n========== DEBUG: /chatbot/settings CALLED ==========")
+    print("Incoming payload:", payload)
+
+    session_token = payload.get("session_token")
+    public_token = payload.get("public_token")
+    require_password = payload.get("require_password")
+    raw_password = payload.get("password")
+
+    print("Parsed values:")
+    print(" session_token =", session_token)
+    print(" public_token =", public_token)
+    print(" require_password =", require_password)
+    print(" raw_password =", raw_password)
+
+    # ---------------- VERIFY ADMIN SESSION ----------------
+    session = db.query(SessionModel).filter(
+        SessionModel.session_token == session_token
+    ).first()
+
+    print("DB session fetched:", session)
+
+    if not session:
+        print("ERROR: Invalid session token → access denied")
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # ---------------- FETCH CHATBOT RECORD ----------------
+    bot = db.query(ChatbotLink).filter(
+        ChatbotLink.public_token == public_token
+    ).first()
+
+    print("DB chatbot link fetched:", bot)
+
+    if not bot:
+        print("ERROR: No chatbot link found for this public_token")
+        raise HTTPException(status_code=404, detail="Chatbot link not found")
+
+    # ---------------- UPDATE PASSWORD SETTINGS ----------------
+    print("Updating chatbot settings...")
+
+    bot.require_password = require_password
+    print("require_password updated to:", require_password)
+
+    if require_password:
+        print("Password protection enabled")
+
+        if not raw_password:
+            print("ERROR: Admin enabled password but did not send password")
+            raise HTTPException(
+                status_code=400,
+                detail="Password value required when require_password is true"
+            )
+
+        hashed_pw = pwd_context.hash(raw_password)
+        print("Generated hashed password:", hashed_pw)
+
+        bot.access_password = hashed_pw
+    else:
+        print("Password protection disabled → clearing existing password")
+        bot.access_password = None
+
+    db.commit()
+    print("DB commit successful")
+    print("========== /chatbot/settings END ==========\n")
+
+    return {"message": "Chatbot access settings updated successfully"}
+
+
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
     # Authenticate and verify session token
