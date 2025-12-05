@@ -2859,7 +2859,7 @@ def chat_whatsapp(
     # -----------------------------------------------------------
     # STEP 3 — Fetch WhatsAppKnowledgeBase using user_id
     # -----------------------------------------------------------
-    print("DEBUG: Fetching KB for user_id =", user_id)
+    
 
     kb = db.query(WhatsAppKnowledgeBase).filter(
         WhatsAppKnowledgeBase.user_id == user_id
