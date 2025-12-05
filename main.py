@@ -3,8 +3,10 @@ from pydantic import BaseModel
 from sqlalchemy import DateTime
 from fastapi import Form
 from PyPDF2 import PdfReader
+from sklearn.metrics.pairwise import cosine_similarity
+from utils import chunk_text, embed_texts
 import hashlib
-
+import numpy as np
 from datetime import date
 from starlette.responses import JSONResponse
 from sqlalchemy import create_engine, Column, Integer, String,func,ForeignKey,Boolean,Text,text,Date,Sequence
