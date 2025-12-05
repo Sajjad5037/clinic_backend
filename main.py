@@ -2450,66 +2450,67 @@ def delete_doctor(doctor_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Doctor deleted successfully"}
 
-# @app.get("/generate-qr-old/{public_token}/{session_token}")
-# def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
-#     # Validate session token
-#     session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
-#     if not session:
-#         return {"error": "Invalid session token"}
+@app.get("/generate-qr-old/{public_token}/{session_token}")
+def generate_qr(public_token: str, session_token: str, db: Session = Depends(get_db)):
+    # Validate session token
+    session = db.query(SessionModel).filter(SessionModel.session_token == session_token).first()
+    if not session:
+        return {"error": "Invalid session token"}
     
-#     # Generate shareable URL
-#     shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
+    # Generate shareable URL
+    shareable_url = f"https://clinic-management-system-27d11.web.app/dashboard?publicToken={public_token}&sessionToken={session_token}"
     
-#     # Generate QR Code
-#     try:
-#         font_path = os.path.join(os.path.dirname(__file__), "arial.ttf")
-#         qr = qrcode.make(shareable_url)
-#     except Exception:
-#         return {"error": "Failed to generate QR code"}
+    # Generate QR Code
+    try:
+        font_path = os.path.join(os.path.dirname(__file__), "arial.ttf")
+        qr = qrcode.make(shareable_url)
+    except Exception:
+        return {"error": "Failed to generate QR code"}
     
-#     # Resize QR code
-#     try:
-#         qr = qr.resize((1200, 1200), Image.Resampling.LANCZOS)
-#     except Exception:
-#         return {"error": "Failed to resize QR code"}
+    # Resize QR code
+    try:
+        qr = qr.resize((1200, 1200), Image.Resampling.LANCZOS)
+    except Exception:
+        return {"error": "Failed to resize QR code"}
     
-#     final_height = 1200 + 150
-#     final_image = Image.new("RGB", (1200, final_height), "white")
-#     final_image.paste(qr, (0, 0))
+    final_height = 1200 + 150
+    final_image = Image.new("RGB", (1200, final_height), "white")
+    final_image.paste(qr, (0, 0))
     
-#     draw = ImageDraw.Draw(final_image)
+    draw = ImageDraw.Draw(final_image)
     
-#     try:
-#         if not os.path.exists(font_path):
-#             raise FileNotFoundError(f"Font file not found at {font_path}")
-#         font = ImageFont.truetype(font_path, 100)
-#     except Exception:
-#         try:
-#             font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
-#         except Exception:
-#             font = ImageFont.load_default()
+    try:
+        if not os.path.exists(font_path):
+            raise FileNotFoundError(f"Font file not found at {font_path}")
+        font = ImageFont.truetype(font_path, 100)
+    except Exception:
+        try:
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
+        except Exception:
+            font = ImageFont.load_default()
     
-#     text = "Scan for Live Updates"
-#     text_bbox = draw.textbbox((0, 0), text, font=font)
-#     text_width = text_bbox[2] - text_bbox[0]
-#     text_height_calculated = text_bbox[3] - text_bbox[1]
+    text = "Scan for Live Updates"
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height_calculated = text_bbox[3] - text_bbox[1]
     
-#     text_x = (1200 - text_width) // 2
-#     text_y = 1200 + ((150 - text_height_calculated) // 2)
+    text_x = (1200 - text_width) // 2
+    text_y = 1200 + ((150 - text_height_calculated) // 2)
     
-#     try:
-#         draw.text((text_x, text_y), text, fill="black", font=font)
-#     except Exception:
-#         return {"error": "Failed to add text to image"}
+    try:
+        draw.text((text_x, text_y), text, fill="black", font=font)
+    except Exception:
+        return {"error": "Failed to add text to image"}
     
-#     try:
-#         img_io = io.BytesIO()
-#         final_image.save(img_io, format="PNG")
-#         img_io.seek(0)
-#     except Exception:
-#         return {"error": "Failed to save final image"}
+    try:
+        img_io = io.BytesIO()
+        final_image.save(img_io, format="PNG")
+        img_io.seek(0)
+    except Exception:
+        return {"error": "Failed to save final image"}
     
-#     return StreamingResponse(img_io, media_type="image/png")
+    return StreamingResponse(img_io, media_type="image/png")
+
 
 @app.get("/generate-qr/{public_token}")
 def generate_qr(public_token: str):
