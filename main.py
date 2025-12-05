@@ -2827,7 +2827,8 @@ def chat_whatsapp(
     # -----------------------------------------------------------
     # STEP 1 — Lookup session by public_token
     # -----------------------------------------------------------
-    session_record = db.query(Session).filter(Session.public_token == public_token).first()
+    session_record = db.query(SessionModel).filter(SessionModel.public_token == public_token).first()
+
     print("DEBUG: Session lookup result:", session_record)
 
     if not session_record:
