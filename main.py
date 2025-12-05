@@ -716,6 +716,63 @@ def allowed_file(filename: str) -> bool:
     """Check if the file extension is allowed."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@app.post("/api/whatsapp-knowledge-base/upload")
+async def upload_pdf(
+    user_id: int = Form(...),            # Required (sent by frontend)
+    file: UploadFile = File(...),        # Required (sent by frontend)
+    db: Session = Depends(get_db)
+):
+    print(f"[DEBUG] Upload request: user_id={user_id}, filename={file.filename}")
+
+    # ----- Extract PDF text -----
+    try:
+        file_bytes = await file.read()
+        print(f"[DEBUG] Read {len(file_bytes)} bytes from file")
+
+        reader = PdfReader(io.BytesIO(file_bytes))
+        text = ""
+
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text() or ""
+            print(f"[DEBUG] Page {i+1}: extracted {len(page_text)} characters")
+            text += page_text
+
+    except Exception as e:
+        print(f"[ERROR] PDF parsing error: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to read PDF: {e}")
+
+    if not text.strip():
+        print("[WARNING] PDF has no readable content")
+        raise HTTPException(status_code=400, detail="Uploaded PDF contains no readable text")
+
+    print(f"[DEBUG] Final extracted text length: {len(text)} characters")
+
+    # ----- Find existing KB or create new -----
+    kb = db.query(WhatsAppKnowledgeBase).filter(
+        WhatsAppKnowledgeBase.user_id == user_id
+    ).first()
+
+    if kb:
+        print(f"[DEBUG] Updating existing KB (id={kb.id})")
+        kb.content = text
+    else:
+        print("[DEBUG] Creating new KB entry")
+        kb = WhatsAppKnowledgeBase(
+            user_id=user_id,
+            content=text
+        )
+        db.add(kb)
+
+    db.commit()
+    db.refresh(kb)
+
+    print(f"[DEBUG] KB saved: id={kb.id}, user_id={kb.user_id}")
+
+    return {
+        "knowledge_base_id": kb.id,
+        "message": "PDF knowledge base uploaded successfully."
+    }
+
 @app.post("/api/knowledge-base/upload")
 async def upload_pdf(
     user_id: int = Form(...),  # Read doctor/user ID from frontend
