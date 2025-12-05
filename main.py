@@ -2804,6 +2804,148 @@ def get_doctor_username(session_token: str = Query(...), db: Session = Depends(g
     # Return doctor username
     return {"username": doctor.username}
 
+@app.post("/api/chat-whatsapp")
+def chat_whatsapp(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    print("\n==================== DEBUG: /api/chat-whatsapp CALLED ====================")
+    print("Incoming payload:", payload)
+
+    # Extract incoming fields
+    message = payload.get("message")
+    public_token = payload.get("public_token")
+    chat_access_token = payload.get("chat_access_token")
+
+    print(f"Parsed parameters:\n message='{message}'\n public_token={public_token}\n chat_access_token={chat_access_token}")
+
+    # Validate required fields
+    if not message or not public_token:
+        print("[ERROR] Missing message or public_token")
+        raise HTTPException(status_code=400, detail="message and public_token are required")
+
+    # -----------------------------------------------------------
+    # STEP 1 — Lookup session by public_token
+    # -----------------------------------------------------------
+    session_record = db.query(Session).filter(Session.public_token == public_token).first()
+    print("DEBUG: Session lookup result:", session_record)
+
+    if not session_record:
+        print(f"[ERROR] No session found for public_token = {public_token}")
+        raise HTTPException(status_code=404, detail="Invalid chatbot link")
+
+    user_id = session_record.user_id
+    print("DEBUG: Session belongs to user_id =", user_id)
+
+    # -----------------------------------------------------------
+    # STEP 2 — Validate password if required
+    # -----------------------------------------------------------
+    requires_password = getattr(session_record, "require_password", False)
+    print("DEBUG: require_password =", requires_password)
+
+    if requires_password:
+        print("Password protection is enabled")
+
+        if not chat_access_token:
+            print("[ERROR] Missing chat_access_token for protected chatbot")
+            raise HTTPException(status_code=401, detail="Password required")
+
+        print("chat_access_token provided → access allowed")
+    else:
+        print("Chatbot is public → no password needed")
+
+    # -----------------------------------------------------------
+    # STEP 3 — Fetch WhatsAppKnowledgeBase using user_id
+    # -----------------------------------------------------------
+    print("DEBUG: Fetching KB for user_id =", user_id)
+
+    kb = db.query(WhatsAppKnowledgeBase).filter(
+        WhatsAppKnowledgeBase.user_id == user_id
+    ).first()
+
+    if not kb:
+        print(f"[WARNING] No KB found for user_id = {user_id}")
+        return {"reply": "Sorry, no knowledge base is available yet."}
+
+    print("KB fetched successfully. KB size:", len(kb.content), "characters")
+
+    # Compute hash for caching
+    kb_hash = hashlib.md5(kb.content.encode("utf-8")).hexdigest()
+    print("KB hash:", kb_hash)
+
+    # -----------------------------------------------------------
+    # STEP 4 — Build or reuse vector store
+    # -----------------------------------------------------------
+    if (user_id not in vector_stores) or (vector_stores[user_id]["kb_hash"] != kb_hash):
+        print("Vector store missing or outdated → rebuilding...")
+
+        chunks = chunk_text(kb.content, chunk_size=500, overlap=50)
+        embeddings = embed_texts(chunks)
+
+        vector_stores[user_id] = {
+            "chunks": chunks,
+            "embeddings": np.array(embeddings),
+            "kb_hash": kb_hash
+        }
+
+        print(f"[DEBUG] Vector store rebuilt with {len(chunks)} chunks")
+    else:
+        print("[DEBUG] Using cached vector store")
+
+    store = vector_stores[user_id]
+
+    # -----------------------------------------------------------
+    # STEP 5 — Embed user question and compute similarity
+    # -----------------------------------------------------------
+    query_embedding = np.array(embed_texts([message])[0])
+    print("Query embedding shape:", query_embedding.shape)
+
+    sims = cosine_similarity([query_embedding], store["embeddings"])[0]
+    top_idx = sims.argmax()
+    print(f"[DEBUG] Most relevant chunk index = {top_idx}, similarity = {sims[top_idx]:.4f}")
+
+    relevant_chunk = store["chunks"][top_idx]
+
+    # -----------------------------------------------------------
+    # STEP 6 — Build prompt
+    # -----------------------------------------------------------
+    prompt = f"""
+You are an AI assistant for user ID {user_id}.
+Answer concisely (1–2 sentences) using ONLY the knowledge below.
+
+Knowledge:
+{relevant_chunk}
+
+User question: {message}
+    """.strip()
+
+    print(f"[DEBUG] Prompt length = {len(prompt)} characters")
+
+    # -----------------------------------------------------------
+    # STEP 7 — Call OpenAI
+    # -----------------------------------------------------------
+    try:
+        print("[DEBUG] Sending prompt to OpenAI...")
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=300
+        )
+
+        bot_reply = response.choices[0].message.content
+        print("[DEBUG] OpenAI response length:", len(bot_reply))
+
+        print("==================== /api/chat-whatsapp END ====================\n")
+        return {"reply": bot_reply}
+
+    except Exception as e:
+        print("[ERROR] OpenAI API failed:", e)
+        print("==================== /api/chat-whatsapp ERROR END ====================\n")
+        raise HTTPException(status_code=500, detail="Failed to generate AI reply")
+
+
 
 
 
