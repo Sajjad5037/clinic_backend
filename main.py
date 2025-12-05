@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import DateTime
 from fastapi import Form
 from PyPDF2 import PdfReader
+import hashlib
 
 from datetime import date
 from starlette.responses import JSONResponse
