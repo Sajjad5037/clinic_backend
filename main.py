@@ -2819,7 +2819,9 @@ def chat_whatsapp(
 
     print(f"Parsed parameters:\n message='{message}'\n public_token={public_token}\n chat_access_token={chat_access_token}")
 
+    # -----------------------------------------------------------
     # Validate required fields
+    # -----------------------------------------------------------
     if not message or not public_token:
         print("[ERROR] Missing message or public_token")
         raise HTTPException(status_code=400, detail="message and public_token are required")
@@ -2827,7 +2829,9 @@ def chat_whatsapp(
     # -----------------------------------------------------------
     # STEP 1 — Lookup session by public_token
     # -----------------------------------------------------------
-    session_record = db.query(SessionModel).filter(SessionModel.public_token == public_token).first()
+    session_record = db.query(SessionModel).filter(
+        SessionModel.public_token == public_token
+    ).first()
 
     print("DEBUG: Session lookup result:", session_record)
 
@@ -2836,20 +2840,19 @@ def chat_whatsapp(
         raise HTTPException(status_code=404, detail="Invalid chatbot link")
 
     doctor_id = session_record.doctor_id
-
-    print("DEBUG: Session belongs to user_id =", doctor_id)
+    print("DEBUG: Session belongs to doctor_id =", doctor_id)
 
     # -----------------------------------------------------------
     # STEP 2 — Validate password if required
     # -----------------------------------------------------------
-    requires_password = getattr(session_record, "require_password", False)
+    requires_password = session_record.require_password
     print("DEBUG: require_password =", requires_password)
 
     if requires_password:
         print("Password protection is enabled")
 
         if not chat_access_token:
-            print("[ERROR] Missing chat_access_token for protected chatbot")
+            print("[ERROR] chat_access_token missing")
             raise HTTPException(status_code=401, detail="Password required")
 
         print("chat_access_token provided → access allowed")
@@ -2857,34 +2860,33 @@ def chat_whatsapp(
         print("Chatbot is public → no password needed")
 
     # -----------------------------------------------------------
-    # STEP 3 — Fetch WhatsAppKnowledgeBase using user_id
+    # STEP 3 — Fetch WhatsAppKnowledgeBase using doctor_id
+    # WhatsAppKnowledgeBase.user_id actually stores doctor_id
     # -----------------------------------------------------------
-    
-
     kb = db.query(WhatsAppKnowledgeBase).filter(
-        WhatsAppKnowledgeBase.user_id == user_id
+        WhatsAppKnowledgeBase.user_id == doctor_id
     ).first()
 
     if not kb:
-        print(f"[WARNING] No KB found for user_id = {user_id}")
+        print(f"[WARNING] No KB found for doctor_id = {doctor_id}")
         return {"reply": "Sorry, no knowledge base is available yet."}
 
     print("KB fetched successfully. KB size:", len(kb.content), "characters")
 
-    # Compute hash for caching
+    # Compute KB hash for caching
     kb_hash = hashlib.md5(kb.content.encode("utf-8")).hexdigest()
     print("KB hash:", kb_hash)
 
     # -----------------------------------------------------------
     # STEP 4 — Build or reuse vector store
     # -----------------------------------------------------------
-    if (user_id not in vector_stores) or (vector_stores[user_id]["kb_hash"] != kb_hash):
+    if (doctor_id not in vector_stores) or (vector_stores[doctor_id]["kb_hash"] != kb_hash):
         print("Vector store missing or outdated → rebuilding...")
 
         chunks = chunk_text(kb.content, chunk_size=500, overlap=50)
         embeddings = embed_texts(chunks)
 
-        vector_stores[user_id] = {
+        vector_stores[doctor_id] = {
             "chunks": chunks,
             "embeddings": np.array(embeddings),
             "kb_hash": kb_hash
@@ -2894,7 +2896,7 @@ def chat_whatsapp(
     else:
         print("[DEBUG] Using cached vector store")
 
-    store = vector_stores[user_id]
+    store = vector_stores[doctor_id]
 
     # -----------------------------------------------------------
     # STEP 5 — Embed user question and compute similarity
@@ -2912,7 +2914,7 @@ def chat_whatsapp(
     # STEP 6 — Build prompt
     # -----------------------------------------------------------
     prompt = f"""
-You are an AI assistant for user ID {user_id}.
+You are an AI assistant for doctor ID {doctor_id}.
 Answer concisely (1–2 sentences) using ONLY the knowledge below.
 
 Knowledge:
@@ -2924,7 +2926,7 @@ User question: {message}
     print(f"[DEBUG] Prompt length = {len(prompt)} characters")
 
     # -----------------------------------------------------------
-    # STEP 7 — Call OpenAI
+    # STEP 7 — OpenAI API call
     # -----------------------------------------------------------
     try:
         print("[DEBUG] Sending prompt to OpenAI...")
@@ -2946,7 +2948,6 @@ User question: {message}
         print("[ERROR] OpenAI API failed:", e)
         print("==================== /api/chat-whatsapp ERROR END ====================\n")
         raise HTTPException(status_code=500, detail="Failed to generate AI reply")
-
 
 
 
