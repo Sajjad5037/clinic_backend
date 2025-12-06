@@ -873,11 +873,14 @@ RULES:
 
     print("🤖 Sending prompt to GPT model...")
 
-    reply = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-    ).choices[0].message["content"]
+    completion = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": prompt}],
+    temperature=0.1
+    )
+    
+    reply = completion.choices[0].message.content
+
 
     print("✅ GPT reply generated")
     print("===================== /api/rag-chat END =====================\n")
