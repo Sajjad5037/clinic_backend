@@ -768,6 +768,29 @@ def embed_texts(texts):
     )
     return [np.array(e.embedding) for e in response.data]
 
+@app.get("/api/whatsapp-knowledge-base/list")
+def list_documents(user_id: int, db: Session = Depends(get_db)):
+    print("\n========== LIST DOCUMENTS ==========")
+    print("User ID:", user_id)
+
+    docs = db.query(WhatsAppDocument).filter(
+        WhatsAppDocument.user_id == user_id
+    ).order_by(WhatsAppDocument.id.desc()).all()
+
+    results = [
+        {
+            "id": doc.id,
+            "title": doc.title or f"Document {doc.id}",
+            "filename": doc.filename
+        }
+        for doc in docs
+    ]
+
+    print(f"[DEBUG] Found {len(results)} document(s) for user {user_id}")
+
+    return {"documents": results}
+
+
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n====================== /api/rag-chat CALLED ======================")
