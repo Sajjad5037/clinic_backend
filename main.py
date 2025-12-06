@@ -100,8 +100,12 @@ class WhatsAppDocument(Base):
     user_id = Column(Integer, index=True)
     title = Column(String)
     filename = Column(String)
+
     # NEW
-    pdf_name = Column(String)  # same as filename, but explicit for RAG metadata
+    pdf_name = Column(String)  
+
+    # REQUIRED FIELD
+    content = Column(Text, nullable=False)   # <-- ADD THIS
 
 class WhatsAppDocumentEmbedding(Base):
     __tablename__ = "whatsapp_documents_embedding"  # ✅ singular "embedding"
