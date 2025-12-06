@@ -92,6 +92,28 @@ clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+class WhatsAppDocument(Base):
+    __tablename__ = "whatsapp_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    title = Column(String(255), nullable=True)
+    filename = Column(String(255), nullable=True)
+    content = Column(Text, nullable=False)  # full extracted text
+
+    # relationship to embeddings
+    embeddings = relationship("WhatsAppDocumentEmbedding", back_populates="document", cascade="all, delete")
+
+class WhatsAppDocumentEmbedding(Base):
+    __tablename__ = "whatsapp_document_embeddings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("whatsapp_documents.id", ondelete="CASCADE"))
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    embedding = Column(ARRAY(Float), nullable=False)  # stores embedding vector
+
+    document = relationship("WhatsAppDocument", back_populates="embeddings")
 
 class ChatRequest(BaseModel):
     message: str
