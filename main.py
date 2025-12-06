@@ -913,22 +913,26 @@ def validate_password(payload: dict, db: Session = Depends(get_db)):
     print(" public_token =", public_token)
     print(" entered_password =", entered_password)
 
-    bot = db.query(ChatbotLink).filter(
-        ChatbotLink.public_token == public_token
+    # IMPORTANT: Replace ChatbotLink with SessionModel
+    print("\n--- Querying sessions table by public_token ---")
+    bot = db.query(SessionModel).filter(
+        SessionModel.public_token == public_token
     ).first()
 
-    print("DB chatbot fetched:", bot)
+    print("DB session fetched:", bot)
 
     if not bot:
-        print("ERROR: Chatbot not found")
-        raise HTTPException(status_code=404, detail="Chatbot not found")
+        print("❌ ERROR: No session found with this public_token")
+        print("========== /chatbot/validate-password END ==========\n")
+        raise HTTPException(status_code=404, detail="Chatbot session not found")
 
-    print("require_password =", bot.require_password)
-    print("stored hashed password =", bot.access_password)
+    print("\n--- SESSION SECURITY SETTINGS ---")
+    print(" require_password =", bot.require_password)
+    print(" stored hashed password =", bot.access_password)
 
     # If NOT password protected → automatically allow
     if not bot.require_password:
-        print("Chatbot doesn't require password → auto-allow access")
+        print("\nChatbot does NOT require password → auto-allow access")
         token = str(uuid4())
         print("Generated chatAccessToken:", token)
         print("========== /chatbot/validate-password END ==========\n")
@@ -936,26 +940,28 @@ def validate_password(payload: dict, db: Session = Depends(get_db)):
 
     # Password IS required → verify
     if not entered_password:
-        print("ERROR: No password entered while required")
-        return {"valid": False}
-
-    print("Verifying entered password...")
-    is_valid = pwd_context.verify(entered_password, bot.access_password)
-
-    print("Password match result:", is_valid)
-
-    if not is_valid:
-        print("ERROR: Password is incorrect")
+        print("\n❌ ERROR: No password entered but one is required")
         print("========== /chatbot/validate-password END ==========\n")
         return {"valid": False}
 
-    # Correct password → generate session token
+    print("\nVerifying entered password...")
+    is_valid = pwd_context.verify(entered_password, bot.access_password)
+
+    print("Password match result =", is_valid)
+
+    if not is_valid:
+        print("❌ ERROR: Password incorrect")
+        print("========== /chatbot/validate-password END ==========\n")
+        return {"valid": False}
+
+    # Correct password → generate chat access token
     chat_token = str(uuid4())
-    print("Password correct → granted access")
+    print("\nPassword CORRECT → Access granted")
     print("Generated chatAccessToken:", chat_token)
 
     print("========== /chatbot/validate-password END ==========\n")
     return {"valid": True, "chatAccessToken": chat_token}
+
 
 
 def generate_pdf_url(bucket_name: str, filename: str) -> str:
