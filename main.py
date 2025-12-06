@@ -116,7 +116,7 @@ class WhatsAppDocumentEmbedding(Base):
 
     document = relationship("WhatsAppDocument", back_populates="embeddings")
 
-class ChatRequest(BaseModel):
+class ChatRequest_new(BaseModel):
     message: str
     public_token: str
     chat_access_token: str
@@ -769,7 +769,7 @@ def embed_texts(texts):
     return [np.array(e.embedding) for e in response.data]
 
 @app.post("/api/rag-chat")
-def rag_chat(request: ChatRequest, db: Session = Depends(get_db)):
+def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n====================== /api/rag-chat CALLED ======================")
     print("User message:", request.message)
     print("Public token:", request.public_token)
