@@ -1,6 +1,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Float
+
 from fastapi import Form
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
