@@ -972,20 +972,10 @@ async def upload_pdf(
         "message": "Document uploaded and embeddings stored successfully."
     }
 
-from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from openai import OpenAI
-import numpy as np
 
-app = FastAPI()
-client = OpenAI()
 
 # ------------------ REQUEST MODEL ------------------
-class ChatRequest(BaseModel):
-    message: str
-    public_token: str
-    chat_access_token: str
+
 
 
 # ------------------ RAG CHATBOT ENDPOINT ------------------
