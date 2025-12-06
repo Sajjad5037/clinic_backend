@@ -795,7 +795,7 @@ def list_documents(user_id: int, db: Session = Depends(get_db)):
     return {"documents": results}
 
 @app.post("/api/rag-chat")
-def rag_chat(request: ChatRequest, db: Session = Depends(get_db)):
+def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
 
     print("\n========== RAG CHAT ==========")
     print("User ID:", request.user_id)
