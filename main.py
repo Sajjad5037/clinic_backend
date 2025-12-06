@@ -1075,71 +1075,83 @@ async def public_websocket_endpoint(websocket: WebSocket, session_token: str, pu
 
 @app.post("/chatbot/settings")
 def update_chatbot_settings(payload: dict, db: Session = Depends(get_db)):
-    print("\n========== DEBUG: /chatbot/settings CALLED ==========")
-    print("Incoming payload:", payload)
+    print("\n\n====================== /chatbot/settings CALLED ======================")
+    print("RAW Incoming payload:", payload)
 
+    # Extract fields
     session_token = payload.get("session_token")
     public_token = payload.get("public_token")
     require_password = payload.get("require_password")
     raw_password = payload.get("password")
 
-    print("Parsed values:")
-    print(" session_token =", session_token)
-    print(" public_token =", public_token)
-    print(" require_password =", require_password)
-    print(" raw_password =", raw_password)
+    print("\n--- PARSED PAYLOAD VALUES ---")
+    print(" session_token      =", session_token)
+    print(" public_token       =", public_token)
+    print(" require_password   =", require_password)
+    print(" password (raw)     =", raw_password)
 
-    # ---------------- VERIFY ADMIN SESSION ----------------
-    session = db.query(SessionModel).filter(
-        SessionModel.session_token == session_token
-    ).first()
+    # ---------------- FETCH SESSION ----------------
+    print("\n--- QUERYING DATABASE FOR SESSION ---")
+    session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.session_token == session_token,
+            SessionModel.public_token == public_token
+        )
+        .first()
+    )
 
-    print("DB session fetched:", session)
+    print("Database returned session:", session)
 
     if not session:
-        print("ERROR: Invalid session token → access denied")
-        raise HTTPException(status_code=401, detail="Invalid session")
+        print("❌ ERROR: No session found matching BOTH session_token + public_token")
+        raise HTTPException(status_code=401, detail="Invalid session or chatbot token")
 
-    # ---------------- FETCH CHATBOT RECORD ----------------
-    bot = db.query(ChatbotLink).filter(
-        ChatbotLink.public_token == public_token
-    ).first()
-
-    print("DB chatbot link fetched:", bot)
-
-    if not bot:
-        print("ERROR: No chatbot link found for this public_token")
-        raise HTTPException(status_code=404, detail="Chatbot link not found")
+    print("\n--- SESSION BEFORE UPDATE ---")
+    print(" require_password (old) =", session.require_password)
+    print(" access_password (old)  =", session.access_password)
 
     # ---------------- UPDATE PASSWORD SETTINGS ----------------
-    print("Updating chatbot settings...")
-
-    bot.require_password = require_password
-    print("require_password updated to:", require_password)
+    print("\n--- APPLYING UPDATES TO SESSION ---")
+    session.require_password = require_password
+    print(" require_password updated →", require_password)
 
     if require_password:
-        print("Password protection enabled")
+        print(" Password protection ENABLED")
 
         if not raw_password:
-            print("ERROR: Admin enabled password but did not send password")
+            print("❌ ERROR: require_password=True but no password sent")
             raise HTTPException(
                 status_code=400,
-                detail="Password value required when require_password is true"
+                detail="Password required when require_password is true"
             )
 
         hashed_pw = pwd_context.hash(raw_password)
-        print("Generated hashed password:", hashed_pw)
+        print(" Generated hashed password =", hashed_pw)
+        session.access_password = hashed_pw
 
-        bot.access_password = hashed_pw
     else:
-        print("Password protection disabled → clearing existing password")
-        bot.access_password = None
+        print(" Password protection DISABLED → clearing access_password")
+        session.access_password = None
 
-    db.commit()
-    print("DB commit successful")
-    print("========== /chatbot/settings END ==========\n")
+    print("\n--- SESSION AFTER UPDATE (before commit) ---")
+    print(" require_password (new) =", session.require_password)
+    print(" access_password (new)  =", session.access_password)
+
+    # ---------------- COMMIT CHANGES ----------------
+    print("\n--- COMMITTING CHANGES TO DATABASE ---")
+    try:
+        db.commit()
+        print("✔️ DB commit successful")
+    except Exception as e:
+        print("❌ DB commit failed:", str(e))
+        db.rollback()
+        raise
+
+    print("\n====================== /chatbot/settings END ======================\n")
 
     return {"message": "Chatbot access settings updated successfully"}
+
 
 
 @app.websocket("/ws/{session_token}")
