@@ -767,7 +767,7 @@ def chunk_text(text, chunk_size=500, overlap=50):
 def embed_texts(texts):
     """Return list of embeddings for a list of texts using OpenAI embeddings"""
     response = client.embeddings.create(
-        model="text-embedding-3-small",
+        model="text-embedding-3-large",   # MUST MATCH UPLOAD ENDPOINT
         input=texts
     )
     return [np.array(e.embedding) for e in response.data]
