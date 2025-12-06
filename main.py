@@ -1075,11 +1075,14 @@ async def upload_pdf(
     if mode == "new":
         print("[DEBUG] Creating new document entry")
 
+        full_text = "\n\n".join([p["text"] for p in pages])  # rebuild whole PDF text
+
         doc = WhatsAppDocument(
             user_id=user_id,
             title=document_title or pdf_name,
             filename=pdf_name,
-            pdf_name=pdf_name,  # ✅ store here too
+            pdf_name=pdf_name,
+            content=full_text,   # ✅ REQUIRED FIX
         )
 
         db.add(doc)
@@ -1104,10 +1107,14 @@ async def upload_pdf(
         if not doc:
             raise HTTPException(404, f"Document {document_id} not found")
 
+        full_text = "\n\n".join([p["text"] for p in pages])
+
+        doc.content = full_text  # ✅ REQUIRED FIX
         doc.filename = pdf_name
         doc.pdf_name = pdf_name
         if document_title:
             doc.title = document_title
+
 
         # Delete old embeddings
         print("[DEBUG] Removing old embeddings...")
