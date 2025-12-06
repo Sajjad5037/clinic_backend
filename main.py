@@ -821,26 +821,35 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
         .all()
     )
 
-
     if not stored_embeddings:
-        print("⚠ No embeddings found → fallback GPT")
-        return {"reply": fallback_gpt(request.message)}
+        return {"reply": "No knowledge base uploaded for this doctor."}
 
     print(f"📊 Loaded {len(stored_embeddings)} embedding chunks")
 
     # ------------------ 3. EMBED USER QUERY ------------------
-    query_embedding = embed_texts([request.message])[0]   # <--- YOUR FUNCTION
-    print("✨ Query embedded successfully")
+    query_embedding = embed_texts([request.message])[0]
+    print(f"✨ Query embedding dim = {len(query_embedding)}")
 
-    # ------------------ 4. COSINE SIMILARITY ------------------
+    # ------------------ 4. ROBUST COSINE SIMILARITY ------------------
     def cosine_sim(a, b):
         a = np.array(a)
         b = np.array(b)
-        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+        if a.shape[0] != b.shape[0]:
+            print(f"❌ Dimension mismatch: query={a.shape[0]}, stored={b.shape[0]}")
+            return None
+
+        denom = np.linalg.norm(a) * np.linalg.norm(b)
+        if denom == 0:
+            return None
+
+        return float(np.dot(a, b) / denom)
 
     scored = []
     for emb in stored_embeddings:
         sim = cosine_sim(query_embedding, emb.embedding)
+        if sim is None:
+            continue
         scored.append({
             "sim": sim,
             "content": emb.content,
@@ -848,10 +857,13 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
             "page_number": emb.page_number,
         })
 
+    if not scored:
+        return {"reply": "Embedding mismatch detected. Please re-upload your documents to refresh embeddings."}
+
     scored.sort(key=lambda x: x["sim"], reverse=True)
     top_chunks = scored[:5]
 
-    # ------------------ 5. BUILD CONTEXT WITH CITATIONS ------------------
+    # ------------------ 5. BUILD CONTEXT ------------------
     context_parts = []
     for c in top_chunks:
         citation = f"[Source: {c['pdf_name']} | Page {c['page_number']}]"
@@ -859,19 +871,14 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
 
     context = "\n\n".join(context_parts)
 
-    print("\n🔎 Top Chunks Sent to Model:")
-    print(context)
-    print("==========================================")
-
     # ------------------ 6. GPT PROMPT ------------------
     prompt = f"""
-You are a strict RAG assistant. Answer ONLY using the provided context.
+You are a strict RAG assistant.
 
 RULES:
-- Cite PDF name and page number in the final answer.
-- Never guess or hallucinate.
-- If answer is not in context, say:
-  "I'm sorry, I couldn't find information about that."
+- Only use the provided context.
+- Cite PDF and page number.
+- No guessing or hallucination.
 
 CONTEXT:
 {context}
@@ -880,8 +887,6 @@ USER QUESTION:
 {request.message}
 """
 
-    print("🤖 Sending prompt to GPT...")
-
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -889,16 +894,14 @@ USER QUESTION:
     )
 
     reply = completion.choices[0].message.content
-    print("✅ GPT reply generated")
 
-    # ------------------ 7. RETURN REPLY + SOURCES ------------------
     return {
         "reply": reply,
         "sources": [
             {
                 "pdf_name": c["pdf_name"],
                 "page_number": c["page_number"],
-                "similarity": c["sim"],
+                "similarity": c["sim"]
             }
             for c in top_chunks
         ],
