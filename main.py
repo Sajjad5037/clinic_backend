@@ -108,7 +108,7 @@ class WhatsAppDocument(Base):
     content = Column(Text, nullable=False)   # <-- ADD THIS
 
 class WhatsAppDocumentEmbedding(Base):
-    __tablename__ = "whatsapp_documents_embedding"  # ✅ singular "embedding"
+    __tablename__ = "whatsapp_document_embeddings"  # ✅ singular "embedding"
 
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("whatsapp_documents.id"), index=True)
