@@ -97,25 +97,25 @@ class WhatsAppDocument(Base):
     __tablename__ = "whatsapp_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False)
-    title = Column(String(255), nullable=True)
-    filename = Column(String(255), nullable=True)
-    content = Column(Text, nullable=False)  # full extracted text
-
-    # relationship to embeddings
-    embeddings = relationship("WhatsAppDocumentEmbedding", back_populates="document", cascade="all, delete")
+    user_id = Column(Integer, index=True)
+    title = Column(String)
+    filename = Column(String)
+    # NEW
+    pdf_name = Column(String)  # same as filename, but explicit for RAG metadata
 
 class WhatsAppDocumentEmbedding(Base):
-    __tablename__ = "whatsapp_document_embeddings"
+    __tablename__ = "whatsapp_documents_embedding"  # ✅ singular "embedding"
 
     id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("whatsapp_documents.id", ondelete="CASCADE"))
-    chunk_index = Column(Integer, nullable=False)
-    content = Column(Text, nullable=False)
-    embedding = Column(ARRAY(Float), nullable=False)  # stores embedding vector
+    document_id = Column(Integer, ForeignKey("whatsapp_documents.id"), index=True)
+    chunk_index = Column(Integer)
+    content = Column(Text)
+    embedding = Column(ARRAY(Float))  # already present
 
-    document = relationship("WhatsAppDocument", back_populates="embeddings")
-
+    # NEW metadata fields:
+    page_number = Column(Integer)     # which page of the PDF this chunk came from
+    pdf_name = Column(String)         # helpful for source display
+    
 class ChatRequest_new(BaseModel):
     message: str
     public_token: str
@@ -1035,9 +1035,9 @@ async def upload_pdf(
     user_id: int = Form(...),
     mode: str = Form(...),                   # "new" or "replace"
     file: UploadFile = File(...),
-    document_id: int = Form(None),           # required only when replacing
-    document_title: str = Form(None),        # optional metadata
-    db: Session = Depends(get_db)
+    document_id: int = Form(None),           # required when mode="replace"
+    document_title: str = Form(None),        # optional
+    db: Session = Depends(get_db),
 ):
     print("\n========== PDF Upload Requested ==========")
     print(f"[DEBUG] user_id={user_id}, mode={mode}, document_id={document_id}, filename={file.filename}")
@@ -1053,20 +1053,23 @@ async def upload_pdf(
     try:
         pdf_bytes = await file.read()
         print(f"[DEBUG] PDF bytes read: {len(pdf_bytes)}")
+
         reader = PdfReader(io.BytesIO(pdf_bytes))
 
-        full_text = ""
+        pages = []
         for i, page in enumerate(reader.pages):
-            page_text = page.extract_text() or ""
-            print(f"[DEBUG] Page {i+1}: {len(page_text)} chars extracted")
-            full_text += page_text
+            text = page.extract_text() or ""
+            print(f"[DEBUG] Page {i+1}: {len(text)} chars extracted")
+            pages.append({"page_number": i + 1, "text": text})
 
     except Exception as e:
         print(f"[ERROR] PDF parsing failed: {e}")
         raise HTTPException(400, f"Failed to read PDF: {e}")
 
-    if not full_text.strip():
+    if not any(p["text"].strip() for p in pages):
         raise HTTPException(400, "PDF contains no readable text")
+
+    pdf_name = file.filename
 
     # ------------------- NEW DOCUMENT -------------------
     if mode == "new":
@@ -1074,9 +1077,9 @@ async def upload_pdf(
 
         doc = WhatsAppDocument(
             user_id=user_id,
-            title=document_title or file.filename,
-            filename=file.filename,
-            content=full_text,
+            title=document_title or pdf_name,
+            filename=pdf_name,
+            pdf_name=pdf_name,  # ✅ store here too
         )
 
         db.add(doc)
@@ -1089,16 +1092,20 @@ async def upload_pdf(
     else:
         print(f"[DEBUG] Replacing existing document: id={document_id}")
 
-        doc = db.query(WhatsAppDocument).filter(
-            WhatsAppDocument.id == document_id,
-            WhatsAppDocument.user_id == user_id
-        ).first()
+        doc = (
+            db.query(WhatsAppDocument)
+            .filter(
+                WhatsAppDocument.id == document_id,
+                WhatsAppDocument.user_id == user_id,
+            )
+            .first()
+        )
 
         if not doc:
             raise HTTPException(404, f"Document {document_id} not found")
 
-        doc.content = full_text
-        doc.filename = file.filename
+        doc.filename = pdf_name
+        doc.pdf_name = pdf_name
         if document_title:
             doc.title = document_title
 
@@ -1114,28 +1121,40 @@ async def upload_pdf(
         print(f"[DEBUG] Document updated: id={doc.id}")
 
     # ------------------- Chunk + Embed Text -------------------
-    chunks = chunk_text(full_text)
-    print(f"[DEBUG] Total chunks created: {len(chunks)}")
+    print("[DEBUG] Beginning chunking + embedding…")
+    chunk_counter = 0
 
-    for idx, chunk in enumerate(chunks):
-        print(f"[DEBUG] Embedding chunk {idx+1}/{len(chunks)}")
+    for page in pages:
+        page_num = page["page_number"]
+        text = page["text"]
 
-        try:
-            embedding = client.embeddings.create(
-                model="text-embedding-3-large",
-                input=chunk
-            ).data[0].embedding
-        except Exception as e:
-            print(f"[ERROR] Embedding failed at chunk {idx}: {e}")
-            raise HTTPException(500, f"Embedding failed: {e}")
+        chunks = chunk_text(text)  # your existing function
+        print(f"[DEBUG] Page {page_num} → {len(chunks)} chunks")
 
-        embed_record = WhatsAppDocumentEmbedding(
-            document_id=doc.id,
-            chunk_index=idx,
-            content=chunk,
-            embedding=embedding
-        )
-        db.add(embed_record)
+        for chunk in chunks:
+            print(f"[DEBUG] Embedding chunk #{chunk_counter}, page {page_num}")
+
+            try:
+                embedding = (
+                    client.embeddings.create(
+                        model="text-embedding-3-large",
+                        input=chunk,
+                    ).data[0].embedding
+                )
+            except Exception as e:
+                print(f"[ERROR] Embedding failed: {e}")
+                raise HTTPException(500, f"Embedding failed: {e}")
+
+            embed_record = WhatsAppDocumentEmbedding(
+                document_id=doc.id,
+                chunk_index=chunk_counter,
+                page_number=page_num,  # ✅ NEW
+                pdf_name=pdf_name,     # ✅ NEW
+                content=chunk,
+                embedding=embedding,
+            )
+            db.add(embed_record)
+            chunk_counter += 1
 
     db.commit()
 
@@ -1143,8 +1162,8 @@ async def upload_pdf(
 
     return {
         "document_id": doc.id,
-        "chunks": len(chunks),
-        "message": "Document uploaded and embeddings stored successfully."
+        "total_chunks": chunk_counter,
+        "message": "Document uploaded and embeddings stored with page numbers and PDF name.",
     }
 
 
