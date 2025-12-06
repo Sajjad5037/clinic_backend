@@ -768,6 +768,132 @@ def embed_texts(texts):
     )
     return [np.array(e.embedding) for e in response.data]
 
+@app.post("/api/rag-chat")
+def rag_chat(request: ChatRequest, db: Session = Depends(get_db)):
+    print("\n====================== /api/rag-chat CALLED ======================")
+    print("User message:", request.message)
+    print("Public token:", request.public_token)
+
+    # ------------------ VERIFY VALID BOT SESSION ------------------
+    session = (
+        db.query(SessionModel)
+        .filter(SessionModel.public_token == request.public_token)
+        .first()
+    )
+
+    if not session:
+        print("❌ Invalid public_token → No session found")
+        raise HTTPException(status_code=404, detail="Chatbot session not found")
+
+    doctor_id = session.doctor_id
+    print("✅ Session found → doctor_id:", doctor_id)
+
+    # ------------------ PASSWORD PROTECTION ------------------
+    if session.require_password:
+        if not request.chat_access_token:
+            print("❌ Missing chat_access_token for a protected bot")
+            raise HTTPException(status_code=401, detail="Missing access token")
+
+        print("🔐 Password-protected chatbot → access token OK")
+    else:
+        print("🟢 Chatbot is public → no password needed")
+
+    # ------------------ LOAD USER DOCUMENTS ------------------
+    docs = db.query(WhatsAppDocument).filter(
+        WhatsAppDocument.user_id == doctor_id
+    ).all()
+
+    if not docs:
+        print("⚠️ No documents uploaded → fallback GPT")
+        return {"reply": fallback_gpt(request.message)}
+
+    print(f"📄 Loaded {len(docs)} documents")
+
+    # ------------------ LOAD EMBEDDINGS ------------------
+    embeddings = (
+        db.query(WhatsAppDocumentEmbedding)
+        .join(WhatsAppDocument,
+              WhatsAppDocumentEmbedding.document_id == WhatsAppDocument.id)
+        .filter(WhatsAppDocument.user_id == doctor_id)
+        .all()
+    )
+
+    if not embeddings:
+        print("⚠️ No embeddings found → fallback GPT")
+        return {"reply": fallback_gpt(request.message)}
+
+    print(f"📊 Loaded {len(embeddings)} embedding chunks")
+
+    # ------------------ EMBED USER QUERY ------------------
+    query_embedding = (
+        client.embeddings.create(
+            model="text-embedding-3-large",
+            input=request.message
+        ).data[0].embedding
+    )
+    print("✨ Query embedded successfully")
+
+    # ------------------ COSINE SIMILARITY FUNCTION ------------------
+    def cosine_sim(a, b):
+        a = np.array(a)
+        b = np.array(b)
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    # ------------------ SCORE ALL CHUNKS ------------------
+    scored = []
+    for emb in embeddings:
+        sim = cosine_sim(query_embedding, emb.embedding)
+        scored.append((sim, emb.content))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    top_chunks = [chunk for _, chunk in scored[:5]]
+
+    print("\n🔎 Top Matching Chunks:")
+    for i, chunk in enumerate(top_chunks):
+        print(f"TOP {i+1}: {chunk[:200]}...\n")
+
+    # ------------------ BUILD MODEL PROMPT ------------------
+    context = "\n\n".join(top_chunks)
+
+    prompt = f"""
+You are an AI assistant answering using ONLY the provided context.
+
+CONTEXT:
+{context}
+
+USER QUESTION:
+{request.message}
+
+RULES:
+- If the answer is not found in the context, reply:
+  "I'm sorry, I couldn't find information about that."
+- Never create or hallucinate information.
+"""
+
+    print("🤖 Sending prompt to GPT model...")
+
+    reply = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+    ).choices[0].message["content"]
+
+    print("✅ GPT reply generated")
+    print("===================== /api/rag-chat END =====================\n")
+
+    return {"reply": reply}
+
+
+# ------------------ FALLBACK GPT ------------------
+def fallback_gpt(message: str):
+    print("⚠️ Fallback GPT used")
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": message}]
+    )
+    return response.choices[0].message["content"]
+
 @app.post("/api/knowledge-base/upload")
 async def upload_pdf(
     user_id: int = Form(...),  # Read doctor/user ID from frontend
