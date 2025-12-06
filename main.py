@@ -92,6 +92,12 @@ clients=[]
 Base = declarative_base()
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
+
+class ChatRequest(BaseModel):
+    message: str
+    public_token: str
+    chat_access_token: str
+
 class KnowledgeBase(Base):
     __tablename__ = "knowledgebases"
     id = Column(Integer, primary_key=True, index=True)
@@ -790,7 +796,7 @@ async def upload_pdf(
 
     return {"knowledge_base_id": kb.id, "message": "PDF content saved successfully and vector store rebuilt."}
 
-
+"""
 @app.post("/api/whatsapp-knowledge-base/upload")
 async def upload_pdf(
     user_id: int = Form(...),            # Required (sent by frontend)
@@ -847,6 +853,265 @@ async def upload_pdf(
         "knowledge_base_id": kb.id,
         "message": "PDF knowledge base uploaded successfully."
     }
+"""
+
+@router.post("/api/whatsapp-knowledge-base/upload")
+async def upload_pdf(
+    user_id: int = Form(...),
+    mode: str = Form(...),                   # "new" or "replace"
+    file: UploadFile = File(...),
+    document_id: int = Form(None),           # required only when replacing
+    document_title: str = Form(None),        # optional metadata
+    db: Session = Depends(get_db)
+):
+    print("\n========== PDF Upload Requested ==========")
+    print(f"[DEBUG] user_id={user_id}, mode={mode}, document_id={document_id}, filename={file.filename}")
+
+    # ------------------- Validate mode -------------------
+    if mode not in ["new", "replace"]:
+        raise HTTPException(400, "Mode must be 'new' or 'replace'")
+
+    if mode == "replace" and not document_id:
+        raise HTTPException(400, "document_id is required when mode='replace'")
+
+    # ------------------- Read PDF -------------------
+    try:
+        pdf_bytes = await file.read()
+        print(f"[DEBUG] PDF bytes read: {len(pdf_bytes)}")
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        full_text = ""
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text() or ""
+            print(f"[DEBUG] Page {i+1}: {len(page_text)} chars extracted")
+            full_text += page_text
+
+    except Exception as e:
+        print(f"[ERROR] PDF parsing failed: {e}")
+        raise HTTPException(400, f"Failed to read PDF: {e}")
+
+    if not full_text.strip():
+        raise HTTPException(400, "PDF contains no readable text")
+
+    # ------------------- NEW DOCUMENT -------------------
+    if mode == "new":
+        print("[DEBUG] Creating new document entry")
+
+        doc = WhatsAppDocument(
+            user_id=user_id,
+            title=document_title or file.filename,
+            filename=file.filename,
+            content=full_text,
+        )
+
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+
+        print(f"[DEBUG] New document created: id={doc.id}")
+
+    # ------------------- REPLACE EXISTING DOCUMENT -------------------
+    else:
+        print(f"[DEBUG] Replacing existing document: id={document_id}")
+
+        doc = db.query(WhatsAppDocument).filter(
+            WhatsAppDocument.id == document_id,
+            WhatsAppDocument.user_id == user_id
+        ).first()
+
+        if not doc:
+            raise HTTPException(404, f"Document {document_id} not found")
+
+        doc.content = full_text
+        doc.filename = file.filename
+        if document_title:
+            doc.title = document_title
+
+        # Delete old embeddings
+        print("[DEBUG] Removing old embeddings...")
+        db.query(WhatsAppDocumentEmbedding).filter(
+            WhatsAppDocumentEmbedding.document_id == document_id
+        ).delete()
+
+        db.commit()
+        db.refresh(doc)
+
+        print(f"[DEBUG] Document updated: id={doc.id}")
+
+    # ------------------- Chunk + Embed Text -------------------
+    chunks = chunk_text(full_text)
+    print(f"[DEBUG] Total chunks created: {len(chunks)}")
+
+    for idx, chunk in enumerate(chunks):
+        print(f"[DEBUG] Embedding chunk {idx+1}/{len(chunks)}")
+
+        try:
+            embedding = client.embeddings.create(
+                model="text-embedding-3-large",
+                input=chunk
+            ).data[0].embedding
+        except Exception as e:
+            print(f"[ERROR] Embedding failed at chunk {idx}: {e}")
+            raise HTTPException(500, f"Embedding failed: {e}")
+
+        embed_record = WhatsAppDocumentEmbedding(
+            document_id=doc.id,
+            chunk_index=idx,
+            content=chunk,
+            embedding=embedding
+        )
+        db.add(embed_record)
+
+    db.commit()
+
+    print("\n========== Upload Complete ==========\n")
+
+    return {
+        "document_id": doc.id,
+        "chunks": len(chunks),
+        "message": "Document uploaded and embeddings stored successfully."
+    }
+
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from openai import OpenAI
+import numpy as np
+
+app = FastAPI()
+client = OpenAI()
+
+# ------------------ REQUEST MODEL ------------------
+class ChatRequest(BaseModel):
+    message: str
+    public_token: str
+    chat_access_token: str
+
+
+# ------------------ RAG CHATBOT ENDPOINT ------------------
+@app.post("/api/chatbot/rag")
+def chatbot_rag(request: ChatRequest, db: Session = Depends(get_db)):
+    print("\n========== /api/chatbot/rag CALLED ==========")
+    print("Incoming message:", request.message)
+    print("public_token:", request.public_token)
+
+    # ------------------ VERIFY BOT SESSION ------------------
+    session = db.query(SessionModel).filter(
+        SessionModel.public_token == request.public_token
+    ).first()
+
+    if not session:
+        print("❌ No session found for public_token")
+        raise HTTPException(status_code=404, detail="Chatbot not found")
+
+    print("Session found for doctor_id:", session.doctor_id)
+
+    # ------------------ ENFORCE PASSWORD PROTECTION ------------------
+    if session.require_password:
+        if not request.chat_access_token:
+            print("❌ Missing access token on password-protected bot")
+            raise HTTPException(status_code=401, detail="Missing access token")
+
+        print("Password-protected access authorized")
+    else:
+        print("Chatbot is public → no password required")
+
+    # ------------------ FETCH USER DOCUMENTS ------------------
+    docs = db.query(WhatsAppDocument).filter(
+        WhatsAppDocument.user_id == session.doctor_id
+    ).all()
+
+    if not docs:
+        print("⚠️ No documents found → fallback GPT")
+        return {"reply": simple_gpt_reply(request.message)}
+
+    print(f"Loaded {len(docs)} documents")
+
+    # ------------------ FETCH ALL EMBEDDINGS ------------------
+    embeddings = db.query(WhatsAppDocumentEmbedding).join(
+        WhatsAppDocument,
+        WhatsAppDocumentEmbedding.document_id == WhatsAppDocument.id
+    ).filter(
+        WhatsAppDocument.user_id == session.doctor_id
+    ).all()
+
+    if not embeddings:
+        print("⚠️ No embeddings found → fallback GPT")
+        return {"reply": simple_gpt_reply(request.message)}
+
+    print(f"Total embeddings loaded: {len(embeddings)}")
+
+    # ------------------ EMBED USER QUERY ------------------
+    query_embedding = (
+        client.embeddings.create(
+            model="text-embedding-3-large",
+            input=request.message
+        ).data[0].embedding
+    )
+
+    print("Query embedding generated")
+
+    # ------------------ COSINE SIMILARITY SEARCH ------------------
+    def cosine_similarity(a, b):
+        a = np.array(a)
+        b = np.array(b)
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    scored_chunks = []
+
+    for emb in embeddings:
+        sim = cosine_similarity(query_embedding, emb.embedding)
+        scored_chunks.append((sim, emb.content))
+
+    scored_chunks.sort(key=lambda x: x[0], reverse=True)
+
+    top_chunks = [chunk for _, chunk in scored_chunks[:5]]
+
+    print("\nTop matching chunks:")
+    for i, chunk in enumerate(top_chunks):
+        print(f"Chunk #{i+1}: {chunk[:200]}...\n")
+
+    # ------------------ GENERATE GPT RESPONSE ------------------
+    context = "\n\n".join(top_chunks)
+
+    prompt = f"""
+You are an AI assistant that answers strictly using the provided context.
+
+CONTEXT:
+{context}
+
+USER QUESTION:
+{request.message}
+
+RULES:
+- If the answer is NOT in the context, reply:
+  "I’m sorry, I couldn’t find information about that."
+- Do NOT fabricate information.
+"""
+
+    print("Sending prompt to GPT…")
+
+    reply = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1
+    ).choices[0].message["content"]
+
+    print("GPT reply generated")
+
+    print("========== /api/chatbot/rag END ==========\n")
+    return {"reply": reply}
+
+
+# ------------------ FALLBACK GPT ------------------
+def simple_gpt_reply(message: str):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": message}]
+    )
+    return response.choices[0].message["content"]
+
+
 
 @app.post("/api/knowledge-base/upload")
 async def upload_pdf(
