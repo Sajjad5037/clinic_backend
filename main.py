@@ -816,9 +816,11 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     # ------------------ 2. LOAD EMBEDDINGS ------------------
     stored_embeddings = (
         db.query(WhatsAppDocumentEmbedding)
-        .filter(WhatsAppDocumentEmbedding.user_id == doctor_id)
+        .join(WhatsAppDocument, WhatsAppDocumentEmbedding.document_id == WhatsAppDocument.id)
+        .filter(WhatsAppDocument.user_id == doctor_id)
         .all()
     )
+
 
     if not stored_embeddings:
         print("⚠ No embeddings found → fallback GPT")
