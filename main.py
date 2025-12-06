@@ -855,7 +855,7 @@ async def upload_pdf(
     }
 """
 
-@router.post("/api/whatsapp-knowledge-base/upload")
+@app.post("/api/whatsapp-knowledge-base/upload")
 async def upload_pdf(
     user_id: int = Form(...),
     mode: str = Form(...),                   # "new" or "replace"
