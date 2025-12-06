@@ -796,28 +796,49 @@ def list_documents(user_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
-
-    print("\n========== RAG CHAT ==========")
-    print("User ID:", request.user_id)
+    print("\n========== /api/rag-chat CALLED ==========")
     print("User Message:", request.message)
+    print("Public Token:", request.public_token)
 
-    # 1) Fetch stored embeddings for this user
+    # ------------------ 1. VALIDATE SESSION ------------------
+    session_row = (
+        db.query(SessionModel)
+        .filter(SessionModel.public_token == request.public_token)
+        .first()
+    )
+
+    if not session_row:
+        raise HTTPException(status_code=404, detail="Invalid public token")
+
+    doctor_id = session_row.doctor_id
+    print("✅ Session OK → doctor_id:", doctor_id)
+
+    # ------------------ 2. LOAD EMBEDDINGS ------------------
     stored_embeddings = (
         db.query(WhatsAppDocumentEmbedding)
-        .filter(WhatsAppDocumentEmbedding.user_id == request.user_id)
+        .filter(WhatsAppDocumentEmbedding.user_id == doctor_id)
         .all()
     )
 
     if not stored_embeddings:
-        return {"reply": "You have not uploaded any documents yet."}
+        print("⚠ No embeddings found → fallback GPT")
+        return {"reply": fallback_gpt(request.message)}
 
-    # 2) Embed user query
-    query_embedding = embed_text(request.message)
+    print(f"📊 Loaded {len(stored_embeddings)} embedding chunks")
 
-    # 3) Score similarity for each chunk
+    # ------------------ 3. EMBED USER QUERY ------------------
+    query_embedding = embed_texts([request.message])[0]   # <--- YOUR FUNCTION
+    print("✨ Query embedded successfully")
+
+    # ------------------ 4. COSINE SIMILARITY ------------------
+    def cosine_sim(a, b):
+        a = np.array(a)
+        b = np.array(b)
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
     scored = []
     for emb in stored_embeddings:
-        sim = cosine_similarity(query_embedding, emb.embedding_vector)
+        sim = cosine_sim(query_embedding, emb.embedding)
         scored.append({
             "sim": sim,
             "content": emb.content,
@@ -825,35 +846,29 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
             "page_number": emb.page_number,
         })
 
-    # 4) Sort by similarity
     scored.sort(key=lambda x: x["sim"], reverse=True)
-
-    # 5) Select top N chunks
     top_chunks = scored[:5]
 
-    # 6) Build context with citations
-    context_blocks = []
+    # ------------------ 5. BUILD CONTEXT WITH CITATIONS ------------------
+    context_parts = []
     for c in top_chunks:
-        header = f"[Source: {c['pdf_name']} | Page {c['page_number']}]"
-        block = f"{header}\n{c['content']}"
-        context_blocks.append(block)
+        citation = f"[Source: {c['pdf_name']} | Page {c['page_number']}]"
+        context_parts.append(f"{citation}\n{c['content']}")
 
-    context = "\n\n".join(context_blocks)
+    context = "\n\n".join(context_parts)
 
-    print("\n========== CONTEXT SENT TO GPT ==========")
+    print("\n🔎 Top Chunks Sent to Model:")
     print(context)
-    print("==========================================\n")
+    print("==========================================")
 
-    # 7) GPT prompt with strict citation rules
+    # ------------------ 6. GPT PROMPT ------------------
     prompt = f"""
-You are an AI assistant answering strictly from the given context.
+You are a strict RAG assistant. Answer ONLY using the provided context.
 
 RULES:
-- End every answer with citations listing PDF names + page numbers used.
-  Example: (Source: mydoc.pdf — pages 2, 4)
-- Never invent page numbers.
-- Never use information outside the context.
-- If the context does not contain the answer, say:
+- Cite PDF name and page number in the final answer.
+- Never guess or hallucinate.
+- If answer is not in context, say:
   "I'm sorry, I couldn't find information about that."
 
 CONTEXT:
@@ -863,20 +878,28 @@ USER QUESTION:
 {request.message}
 """
 
-    # 8) Call GPT
-    reply = ask_gpt(prompt)
+    print("🤖 Sending prompt to GPT...")
 
-    # 9) Return answer + useful metadata
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+    )
+
+    reply = completion.choices[0].message.content
+    print("✅ GPT reply generated")
+
+    # ------------------ 7. RETURN REPLY + SOURCES ------------------
     return {
         "reply": reply,
         "sources": [
             {
                 "pdf_name": c["pdf_name"],
                 "page_number": c["page_number"],
-                "similarity": c["sim"]
+                "similarity": c["sim"],
             }
             for c in top_chunks
-        ]
+        ],
     }
 
 
