@@ -488,16 +488,24 @@ class SessionModel(Base):  # Handles authentication sessions
     doctor = relationship("Doctor", back_populates="sessions")
 
 
-class APIUsageModel(Base):  # Tracks API usage per doctor
+class APIUsageModel(Base):
     __tablename__ = "api_usage"
 
     id = Column(Integer, primary_key=True, index=True)
-    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
-    request_type = Column(String(50), nullable=False)  # e.g., "chatbot"
-    request_count = Column(Integer, default=1)
-    date = Column(Date, default=func.current_date())
+    doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
 
-    doctor = relationship("Doctor", back_populates="api_usage")
+    # Which API they used
+    request_type = Column(String(50), nullable=False)      # rag_chat, pdf_upload, embeddings
+
+    # How much OpenAI cost was consumed
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    cost_usd = Column(Float, default=0.0)
+
+    # When it happened
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
 class RailwayResourceUsageModel(Base):  # Tracks Railway resource usage per doctor
     __tablename__ = "railway_resource_usage"
 
@@ -821,6 +829,18 @@ def register_api_usage(db, doctor_id: int, request_type: str):
     db.commit()
 
 
+def register_detailed_usage(db, doctor_id, request_type, prompt_tokens, completion_tokens, total_tokens, cost_usd):
+    row = APIUsageModel(
+        doctor_id=doctor_id,
+        request_type=request_type,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        cost_usd=cost_usd,
+    )
+    db.add(row)
+    db.commit()
+
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n========== /api/rag-chat CALLED ==========")
@@ -839,8 +859,6 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
 
     doctor_id = session_row.doctor_id
     print("✅ Session OK → doctor_id:", doctor_id)
-    # ---- Register usage ----
-    register_api_usage(db, doctor_id, "rag_chat")
 
     # ------------------ 2. LOAD EMBEDDINGS ------------------
     stored_embeddings = (
@@ -920,6 +938,24 @@ USER QUESTION:
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
+    )
+    usage = completion.usage
+    prompt_tokens = usage.prompt_tokens
+    completion_tokens = usage.completion_tokens
+    total_tokens = usage.total_tokens
+
+    prompt_cost = prompt_tokens * 0.000000150
+    completion_cost = completion_tokens * 0.000000600
+    total_cost = prompt_cost + completion_cost
+
+    register_detailed_usage(
+        db=db,
+        doctor_id=doctor_id,
+        request_type="rag_chat",
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        total_tokens=usage.total_tokens,
+        cost_usd=total_cost
     )
 
     reply = completion.choices[0].message.content
