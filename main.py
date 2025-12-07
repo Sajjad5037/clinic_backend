@@ -794,6 +794,7 @@ def list_documents(user_id: int, db: Session = Depends(get_db)):
 
     return {"documents": results}
 
+        
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n========== /api/rag-chat CALLED ==========")
@@ -907,6 +908,28 @@ USER QUESTION:
         ],
     }
 
+
+@app.get("/api/usage")
+def get_api_usage(doctorId: int, db: Session = Depends(get_db)):
+
+    usage_rows = (
+        db.query(APIUsageModel)
+        .filter(APIUsageModel.doctor_id == doctorId)
+        .order_by(APIUsageModel.date.desc())
+        .all()
+    )
+
+    if not usage_rows:
+        return []
+
+    return [
+        {
+            "date": str(row.date),
+            "request_type": row.request_type,
+            "count": row.request_count
+        }
+        for row in usage_rows
+    ]
 
 
 # ------------------ FALLBACK GPT ------------------
