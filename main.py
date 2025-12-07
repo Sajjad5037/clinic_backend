@@ -2004,7 +2004,7 @@ def get_api_usage(doctorId: int, db: Session = Depends(get_db)):
     usage_rows = (
         db.query(APIUsageModel)
         .filter(APIUsageModel.doctor_id == doctorId)
-        .order_by(APIUsageModel.date.desc())
+        .order_by(APIUsageModel.timestamp.desc())
         .all()
     )
 
@@ -2013,14 +2013,16 @@ def get_api_usage(doctorId: int, db: Session = Depends(get_db)):
 
     return [
         {
-            "date": str(row.date),
+            "date": str(row.timestamp.date()),  # extract date only
             "request_type": row.request_type,
-            "count": row.request_count
+            "prompt_tokens": row.prompt_tokens,
+            "completion_tokens": row.completion_tokens,
+            "total_tokens": row.total_tokens,
+            "cost_usd": row.cost_usd,
+            "timestamp": row.timestamp.isoformat(),
         }
         for row in usage_rows
     ]
-
-
                     
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
