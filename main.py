@@ -794,7 +794,33 @@ def list_documents(user_id: int, db: Session = Depends(get_db)):
 
     return {"documents": results}
 
-        
+def register_api_usage(db, doctor_id: int, request_type: str):
+    today = date.today()
+
+    existing = (
+        db.query(APIUsageModel)
+        .filter(
+            APIUsageModel.doctor_id == doctor_id,
+            APIUsageModel.request_type == request_type,
+            APIUsageModel.date == today
+        )
+        .first()
+    )
+
+    if existing:
+        existing.request_count += 1
+    else:
+        new_row = APIUsageModel(
+            doctor_id=doctor_id,
+            request_type=request_type,
+            request_count=1,
+            date=today
+        )
+        db.add(new_row)
+
+    db.commit()
+
+
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n========== /api/rag-chat CALLED ==========")
@@ -813,6 +839,8 @@ def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
 
     doctor_id = session_row.doctor_id
     print("✅ Session OK → doctor_id:", doctor_id)
+    # ---- Register usage ----
+    register_api_usage(db, doctor_id, "rag_chat")
 
     # ------------------ 2. LOAD EMBEDDINGS ------------------
     stored_embeddings = (
@@ -908,28 +936,6 @@ USER QUESTION:
         ],
     }
 
-
-@app.get("/api/usage")
-def get_api_usage(doctorId: int, db: Session = Depends(get_db)):
-
-    usage_rows = (
-        db.query(APIUsageModel)
-        .filter(APIUsageModel.doctor_id == doctorId)
-        .order_by(APIUsageModel.date.desc())
-        .all()
-    )
-
-    if not usage_rows:
-        return []
-
-    return [
-        {
-            "date": str(row.date),
-            "request_type": row.request_type,
-            "count": row.request_count
-        }
-        for row in usage_rows
-    ]
 
 
 # ------------------ FALLBACK GPT ------------------
