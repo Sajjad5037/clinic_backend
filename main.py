@@ -469,6 +469,7 @@ class Doctor(Base):
     api_usage = relationship("APIUsageModel", back_populates="doctor")
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
+    
 
 class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
@@ -492,7 +493,7 @@ class APIUsageModel(Base):
     __tablename__ = "api_usage"
 
     id = Column(Integer, primary_key=True, index=True)
-    doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
+    
 
     # Which API they used
     request_type = Column(String(50), nullable=False)      # rag_chat, pdf_upload, embeddings
