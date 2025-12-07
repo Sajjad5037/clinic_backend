@@ -804,32 +804,17 @@ def list_documents(user_id: int, db: Session = Depends(get_db)):
     return {"documents": results}
 
 def register_api_usage(db, doctor_id: int, request_type: str):
-    today = date.today()
-
-    existing = (
-        db.query(APIUsageModel)
-        .filter(
-            APIUsageModel.doctor_id == doctor_id,
-            APIUsageModel.request_type == request_type,
-            func.date(APIUsageModel.timestamp) == today
-
-        )
-        .first()
+    new_row = APIUsageModel(
+        doctor_id=doctor_id,
+        request_type=request_type,
+        prompt_tokens=0,
+        completion_tokens=0,
+        total_tokens=0,
+        cost_usd=0.0
     )
 
-    if existing:
-        existing.request_count += 1
-    else:
-        new_row = APIUsageModel(
-            doctor_id=doctor_id,
-            request_type=request_type,
-            request_count=1,
-            date=today
-        )
-        db.add(new_row)
-
+    db.add(new_row)
     db.commit()
-
 
 def register_detailed_usage(db, doctor_id, request_type, prompt_tokens, completion_tokens, total_tokens, cost_usd):
     row = APIUsageModel(
