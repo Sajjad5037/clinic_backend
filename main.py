@@ -466,7 +466,7 @@ class Doctor(Base):
     specialization = Column(String, nullable=False)
     
     # Define relationships
-    api_usage = relationship("APIUsageModel", back_populates="doctor")
+    
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
     
