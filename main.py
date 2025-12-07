@@ -816,18 +816,26 @@ def register_api_usage(db, doctor_id: int, request_type: str):
     db.add(new_row)
     db.commit()
 
-def register_detailed_usage(db, doctor_id, request_type, prompt_tokens, completion_tokens, total_tokens, cost_usd):
+def register_detailed_usage(
+    db, doctor_id, request_type,
+    prompt_tokens, completion_tokens,
+    total_tokens, cost_usd
+):
+    # Apply 10× markup (your charge)
+    platform_cost = cost_usd * 10
+
     row = APIUsageModel(
         doctor_id=doctor_id,
         request_type=request_type,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
-        cost_usd=cost_usd,
+        cost_usd=platform_cost,   # save your marked-up cost
     )
+
     db.add(row)
     db.commit()
-
+    
 @app.post("/api/rag-chat")
 def rag_chat(request: ChatRequest_new, db: Session = Depends(get_db)):
     print("\n========== /api/rag-chat CALLED ==========")
