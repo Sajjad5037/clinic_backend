@@ -811,7 +811,8 @@ def register_api_usage(db, doctor_id: int, request_type: str):
         .filter(
             APIUsageModel.doctor_id == doctor_id,
             APIUsageModel.request_type == request_type,
-            APIUsageModel.date == today
+            func.date(APIUsageModel.timestamp) == today
+
         )
         .first()
     )
