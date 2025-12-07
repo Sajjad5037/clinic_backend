@@ -493,7 +493,7 @@ class APIUsageModel(Base):
     __tablename__ = "api_usage"
 
     id = Column(Integer, primary_key=True, index=True)
-    
+    doctor_id = Column(Integer, nullable=False)
 
     # Which API they used
     request_type = Column(String(50), nullable=False)      # rag_chat, pdf_upload, embeddings
