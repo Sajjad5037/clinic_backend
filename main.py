@@ -1960,6 +1960,29 @@ async def add_user(request: Request):
         print("🚨 Exception occurred:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.get("/api/usage")
+def get_api_usage(doctorId: int, db: Session = Depends(get_db)):
+
+    usage_rows = (
+        db.query(APIUsageModel)
+        .filter(APIUsageModel.doctor_id == doctorId)
+        .order_by(APIUsageModel.date.desc())
+        .all()
+    )
+
+    if not usage_rows:
+        return []
+
+    return [
+        {
+            "date": str(row.date),
+            "request_type": row.request_type,
+            "count": row.request_count
+        }
+        for row in usage_rows
+    ]
+
+
                     
 @app.post("/extractText")
 async def extract_text(image: UploadFile = File(...)):
