@@ -168,64 +168,65 @@ class ChatRequest(BaseModel):
 # WebSocket connection manager to handle multiple clients... it is responsible for connecting, disconnecting and broadcasting messages
 class ConnectionManager:
     def __init__(self):
-        # List to store all active WebSocket connections
-        self.active_connections: Set[WebSocket] = set()  # Change from List to Set
-        # Dictionary to store the WebSocket connections with their session tokens
-        self.client_tokens: Dict[WebSocket, str] = {}
+        # Map session_token → set of websocket connections
+        self.sessions: Dict[str, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, session_token: str):
-        # Accept the WebSocket connection and add it to the list
         await websocket.accept()
-        self.active_connections.add(websocket)
-        self.client_tokens[websocket] = session_token  # Add session token to this connection
-        print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
-        
+
+        if session_token not in self.sessions:
+            self.sessions[session_token] = set()
+
+        self.sessions[session_token].add(websocket)
+
+        print(f"[CONNECT] Session {session_token}: {len(self.sessions[session_token])} clients connected.")
+
     def disconnect(self, websocket: WebSocket, session_token: str):
-        # Remove this websocket from active connections
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-    
-        # Remove websocket → session mapping
-        if websocket in self.client_tokens:
-            del self.client_tokens[websocket]
-    
-        print(f"Client disconnected from session {session_token}. Remaining: {len(self.active_connections)}")
+        if session_token in self.sessions:
+            session_set = self.sessions[session_token]
 
-        
-    async def broadcast(self, message: dict):
-        print(f"Broadcasting message: {message}")
-        if not self.active_connections:
-            print("No active connections to broadcast to.")
-            return
-        print(f"Active Connections: {len(self.active_connections)}")
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(json.dumps(message))
-            except Exception as e:
-                print(f"Error sending message to a client: {e}")
+            if websocket in session_set:
+                session_set.remove(websocket)
+
+            if not session_set:
+                del self.sessions[session_token]
+
+        print(f"[DISCONNECT] Session {session_token}: {len(self.sessions.get(session_token, []))} clients remaining.")
+
     async def broadcast_to_session(self, session_token: str, message: dict):
-        # Broadcast message to all WebSocket connections for a specific session
-        print(f"Broadcasting message to session {session_token}: {message}")
-        
-        if not self.active_connections:
-            print("No active connections to broadcast to.")
+        # If no session connections → nothing to send
+        if session_token not in self.sessions:
+            print(f"[BROADCAST] No clients for session {session_token}")
             return
 
-        # Iterate through active connections and send message if the session_token matches
-        for connection, token in self.client_tokens.items():
-            print(f"Connection: {connection}")
-            print(f"Token associated with this connection: {token}")
-            print(f"Session token provided: {session_token}\n")
+        serialized = json.dumps(message)
+        dead_connections = []
 
-            # Check if the session token matches the token for this connection
-            if token == session_token:
+        # Send message to all clients in this session
+        for ws in self.sessions[session_token]:
+            try:
+                await ws.send_text(serialized)
+            except Exception as e:
+                print(f"[ERROR] Failed to send to a client: {e}")
+                dead_connections.append(ws)
+
+        # Clean dead connections
+        for ws in dead_connections:
+            self.sessions[session_token].remove(ws)
+
+        print(f"[BROADCAST] Sent to {len(self.sessions.get(session_token, []))} clients in session {session_token}")
+
+    async def broadcast(self, message: dict):
+        # Send to every client in every session
+        serialized = json.dumps(message)
+
+        for session_token, ws_set in self.sessions.items():
+            for ws in ws_set:
                 try:
-                    print(f"Sending message to connection: {connection} with session token: {session_token}")
-                    await connection.send_text(json.dumps(message))
-                except Exception as e:
-                    print(f"Error sending message to session {session_token}: {e}")
-            else:
-                print(f"Skipping connection {connection} as its token does not match the provided session token.")
+                    await ws.send_text(serialized)
+                except:
+                    pass
+
 class LogoutRequest(BaseModel):
     resetAverageInspectionTime: bool = True
 
