@@ -247,7 +247,7 @@ class DashboardState:
                 "current_patient": None,
                 "inspection_times": [],
                 "start_time": None,
-                "average_inspection_time": 60,
+                "average_inspection_time": 300,
                 "notices": [],
                 "added_times": []  # <-- NEW FIELD FOR TIMER SYSTEM
             }
@@ -280,15 +280,35 @@ class DashboardState:
 
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
+    
+        # No current patient? Then nothing to do
         if not session["current_patient"]:
             return
-        
-        duration = time.time() - session["start_time"]
-        session["inspection_times"].append(duration)
-        
-        session["patients"].pop(0)
-        session["current_patient"] = session["patients"][0] if session["patients"] else None
-        session["start_time"] = time.time() if session["current_patient"] else None
+    
+        now = time.time()
+        start_time = session.get("start_time")
+    
+        if start_time:
+            inspection_duration = now - start_time
+            session["inspection_times"].append(inspection_duration)
+    
+            # Keep only last 10 inspections to avoid extreme spikes
+            session["inspection_times"] = session["inspection_times"][-10:]
+    
+            # Update average inspection time
+            session["average_inspection_time"] = sum(session["inspection_times"]) / len(session["inspection_times"])
+    
+        # Move to next patient
+        if session["patients"]:
+            session["patients"].pop(0)
+    
+        # Set next current patient
+        if session["patients"]:
+            session["current_patient"] = session["patients"][0]
+            session["start_time"] = time.time()
+        else:
+            session["current_patient"] = None
+            session["start_time"] = None
 
     def get_average_time(self, session_token):
         session = self.get_session(session_token)
