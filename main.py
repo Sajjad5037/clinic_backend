@@ -265,19 +265,17 @@ class DashboardState:
         return time.time()
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
+        
+        # Add patient to queue
         session["patients"].append(patient_name)
     
-        # Store timestamp for backend timer calculations
-        if "added_times" not in session:
-            session["added_times"] = []
+        # Track time patient was added (for waiting-time predictions)
         session["added_times"].append(time.time())
     
-        # If no active patient, this patient becomes the current one
+        # If this is the first patient in the queue, set them as current
         if not session.get("current_patient"):
             session["current_patient"] = patient_name
-            session["start_time"] = time.time()
-
-
+            # Do NOT set start_time here — doctor has not started inspection yet
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
     
@@ -288,31 +286,44 @@ class DashboardState:
         now = time.time()
         start_time = session.get("start_time")
     
+        # Calculate actual inspection time if available
         if start_time:
             inspection_duration = now - start_time
             session["inspection_times"].append(inspection_duration)
     
-            # Keep only last 10 inspections to avoid extreme spikes
+            # Keep last 10 inspections (avoid outliers)
             session["inspection_times"] = session["inspection_times"][-10:]
     
-            # Update average inspection time
-            session["average_inspection_time"] = sum(session["inspection_times"]) / len(session["inspection_times"])
+            # Recalculate average inspection time
+            session["average_inspection_time"] = (
+                sum(session["inspection_times"]) / len(session["inspection_times"])
+            )
     
-        # Move to next patient
+        # Remove the current patient from queue
         if session["patients"]:
             session["patients"].pop(0)
     
-        # Set next current patient
+        # Move to the next patient
         if session["patients"]:
             session["current_patient"] = session["patients"][0]
-            session["start_time"] = time.time()
+            session["start_time"] = time.time()  # Doctor is now starting next inspection
         else:
             session["current_patient"] = None
             session["start_time"] = None
 
     def get_average_time(self, session_token):
         session = self.get_session(session_token)
-        return round(sum(session["inspection_times"]) / len(session["inspection_times"])) if session["inspection_times"] else 300
+    
+        if not session["inspection_times"]:
+            return 300  # default = 5 minutes
+    
+        avg = sum(session["inspection_times"]) / len(session["inspection_times"])
+    
+        # Minimum realistic inspection time
+        avg = max(avg, 60)
+    
+        return int(avg)
+
 
     def get_public_state(self, session_token):
         session = self.get_session(session_token)
