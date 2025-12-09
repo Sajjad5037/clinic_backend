@@ -283,31 +283,49 @@ class DashboardState:
     # ------------------------------------
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
-
+    
         current = session["current_patient"]
         if not current:
             return
-
+    
         now = time.time()
         start_time = session.get("start_time")
-
-        # Record inspection duration
+    
+        # ------------------------------------------
+        # Record inspection duration WITH BASELINE
+        # ------------------------------------------
         if start_time:
             duration = now - start_time
+    
+            # If this is the first inspection, mix with baseline 300 sec
+            if not session["inspection_times"]:
+                session["inspection_times"] = [300]   # baseline for averaging
+    
             session["inspection_times"].append(duration)
             session["inspection_times"] = session["inspection_times"][-10:]  # keep last 10
-
+    
+            # Recalculate average inspection time
+            avg = sum(session["inspection_times"]) / len(session["inspection_times"])
+            session["average_inspection_time"] = max(avg, 60)
+        else:
+            # No inspection happened (possible on reset)
+            pass
+    
+        # ------------------------------------------
         # Remove current patient + their timestamp
+        # ------------------------------------------
         if session["patients"]:
             session["patients"].pop(0)
-
+    
         if session["added_times"]:
-            session["added_times"].pop(0)  # <-- CRITICAL FIX
-
+            session["added_times"].pop(0)
+    
+        # ------------------------------------------
         # Move to next patient
+        # ------------------------------------------
         if session["patients"]:
             session["current_patient"] = session["patients"][0]
-            session["start_time"] = time.time()
+            session["start_time"] = time.time()  # doctor starts next inspection
         else:
             session["current_patient"] = None
             session["start_time"] = None
