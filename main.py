@@ -179,14 +179,18 @@ class ConnectionManager:
         self.active_connections.add(websocket)
         self.client_tokens[websocket] = session_token  # Add session token to this connection
         print(f"New client connected with token {session_token}! Total clients: {len(self.active_connections)}")
-    def disconnect(self, websocket: WebSocket, session_token: str):
-        # Remove the WebSocket from the session-specific connection set
-        if session_token in self.active_connections:
-            self.active_connections[session_token].discard(websocket)
-            # Clean up the session if no connections remain
-            if not self.active_connections[session_token]:
-                del self.active_connections[session_token]
         
+    def disconnect(self, websocket: WebSocket, session_token: str):
+        # Remove this websocket from active connections
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+    
+        # Remove websocket → session mapping
+        if websocket in self.client_tokens:
+            del self.client_tokens[websocket]
+    
+        print(f"Client disconnected from session {session_token}. Remaining: {len(self.active_connections)}")
+
         
     async def broadcast(self, message: dict):
         print(f"Broadcasting message: {message}")
