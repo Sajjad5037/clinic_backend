@@ -236,22 +236,27 @@ manager = ConnectionManager()
 # Server-side state for real-time features
 class DashboardState:
     def __init__(self):
-        self.sessions = {}  # Store session-specific state
+        self.sessions = {}  # Store state per session_token
 
+    # ------------------------------------
+    # GET OR CREATE SESSION
+    # ------------------------------------
     def get_session(self, session_token):
         if session_token not in self.sessions:
             self.sessions[session_token] = {
                 "doctor_name": None,
                 "patients": [],
                 "current_patient": None,
-                "inspection_times": [],
-                "start_time": None,
-                "average_inspection_time": 300,   # default = 5 min
+                "inspection_times": [],  # stores finished inspection durations
+                "start_time": None,      # when doctor started inspecting current patient
                 "notices": [],
-                "added_times": []
+                "added_times": []        # timestamp when each patient was added to queue
             }
         return self.sessions[session_token]
 
+    # ------------------------------------
+    # GET TIMESTAMP WHEN PATIENT WAS ADDED
+    # ------------------------------------
     def get_patient_timestamp(self, session_token, index):
         session = self.get_session(session_token)
         added_times = session.get("added_times", [])
@@ -259,74 +264,72 @@ class DashboardState:
             return added_times[index]
         return time.time()
 
-    # -------------------------------
-    # ADD PATIENT
-    # -------------------------------
+    # ------------------------------------
+    # ADD NEW PATIENT
+    # ------------------------------------
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
 
         session["patients"].append(patient_name)
         session["added_times"].append(time.time())
 
-        # If queue was empty → we set current patient
+        # If this is the first patient, doctor begins inspection now
         if not session.get("current_patient"):
             session["current_patient"] = patient_name
-            # IMPORTANT: do NOT set start_time here
-            # The doctor has not started inspecting yet.
+            session["start_time"] = time.time()
 
-    # -------------------------------
+    # ------------------------------------
     # MARK PATIENT AS DONE
-    # -------------------------------
+    # ------------------------------------
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
 
-        if not session["current_patient"]:
+        current = session["current_patient"]
+        if not current:
             return
 
         now = time.time()
         start_time = session.get("start_time")
 
-        # Calculate inspection duration ONLY if doctor actually started
+        # Record inspection duration
         if start_time:
-            inspection_duration = now - start_time
-            session["inspection_times"].append(inspection_duration)
+            duration = now - start_time
+            session["inspection_times"].append(duration)
+            session["inspection_times"] = session["inspection_times"][-10:]  # keep last 10
 
-            # Keep last 10 inspections
-            session["inspection_times"] = session["inspection_times"][-10:]
-
-            # Recalculate average
-            avg = sum(session["inspection_times"]) / len(session["inspection_times"])
-            session["average_inspection_time"] = max(avg, 60)  # Minimum 60 seconds
-
-        # Remove the completed patient
+        # Remove current patient + their timestamp
         if session["patients"]:
             session["patients"].pop(0)
+
+        if session["added_times"]:
+            session["added_times"].pop(0)  # <-- CRITICAL FIX
 
         # Move to next patient
         if session["patients"]:
             session["current_patient"] = session["patients"][0]
-            session["start_time"] = time.time()  # doctor starts inspection
+            session["start_time"] = time.time()
         else:
             session["current_patient"] = None
             session["start_time"] = None
 
-    # -------------------------------
-    # GET AVERAGE INSPECTION TIME
-    # -------------------------------
+    # ------------------------------------
+    # COMPUTE AVERAGE INSPECTION TIME
+    # ------------------------------------
     def get_average_time(self, session_token):
         session = self.get_session(session_token)
-
         times = session["inspection_times"]
+
         if not times:
-            return 300  # default = 5 min
+            return 300  # default = 5 minutes
 
         avg = sum(times) / len(times)
-        avg = max(avg, 60)  # Minimum realistic consultation: 60 sec
-        return int(avg)
 
-    # -------------------------------
-    # PUBLIC VIEW (FOR PATIENTS)
-    # -------------------------------
+        # Ensure minimum realistic inspection time (avoid 0 or unrealistic spikes)
+        return max(int(avg), 60)
+
+    # ------------------------------------
+    # PUBLIC STATE (FOR PATIENT VIEW)
+    # ------------------------------------
     def get_public_state(self, session_token):
         session = self.get_session(session_token)
         return {
@@ -335,21 +338,21 @@ class DashboardState:
             "averageInspectionTime": self.get_average_time(session_token),
         }
 
-    # -------------------------------
-    # RESET ALL
-    # -------------------------------
+    # ------------------------------------
+    # RESET SESSION
+    # ------------------------------------
     def reset_all(self, session_token):
         session = self.get_session(session_token)
         session["patients"] = []
         session["current_patient"] = None
         session["inspection_times"] = []
         session["start_time"] = None
-        session["average_inspection_time"] = 300
         session["added_times"] = []
+        # notices remain so the doctor doesn’t lose them
 
-    # -------------------------------
+    # ------------------------------------
     # NOTICES
-    # -------------------------------
+    # ------------------------------------
     def add_notice(self, session_token, notice: str):
         session = self.get_session(session_token)
         session["notices"].append(notice)
@@ -362,6 +365,7 @@ class DashboardState:
         session = self.get_session(session_token)
         if 0 <= index < len(session["notices"]):
             del session["notices"][index]
+
 
 
 class OrderManagerState:
