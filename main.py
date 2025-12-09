@@ -1696,29 +1696,46 @@ async def timer_loop(session_token, state, manager, public_manager):
         patients = session_data.get("patients", [])
         avg = state.get_average_time(session_token)
 
-        timers = {}
+        # Debug session info
+        print("\n--- TIMER LOOP DEBUG ---")
+        print("Session Token:", session_token)
+        print("Patients:", patients)
+        print("Added_times:", session_data.get("added_times"))
+        print("Average Inspection Time:", avg)
 
-        # Compute remaining time for each patient
+        timers = {}
         now = time.time()
+
         for index, patient in enumerate(patients):
-            added = state.get_patient_timestamp(session_token, index)  # you will add this below
+            added = state.get_patient_timestamp(session_token, index)
+
             wait_offset = avg * index
             elapsed = now - added
             remaining = max(wait_offset - elapsed, 0)
+
             timers[index] = int(remaining)
+
+            # Debug each patient timer computation
+            print(f"\nPatient #{index}: {patient}")
+            print("  Added Time:", added)
+            print("  Wait Offset:", wait_offset)
+            print("  Elapsed:", elapsed)
+            print("  Remaining:", remaining)
+
+        print("Computed Timers:", timers)
+        print("--- END DEBUG ---\n")
 
         update_msg = {
             "type": "update_timers",
             "timers": timers
         }
 
-        # Broadcast to doctor
+        # Broadcast the timers to doctor and public dashboard
         await manager.broadcast_to_session(session_token, update_msg)
-
-        # Broadcast to public view
         await public_manager.broadcast_to_session(session_token, update_msg)
 
         await asyncio.sleep(1)
+
 
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
