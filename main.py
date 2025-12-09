@@ -6,6 +6,8 @@ from fastapi import Form
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
 
+
+
 import hashlib
 import numpy as np
 from datetime import date
@@ -241,19 +243,35 @@ class DashboardState:
                 "inspection_times": [],
                 "start_time": None,
                 "average_inspection_time": 60,
-                
-                "notices": []
+                "notices": [],
+                "added_times": []  # <-- NEW FIELD FOR TIMER SYSTEM
             }
 
-        print(f"line 126: {self.sessions[session_token]}")
         return self.sessions[session_token]
-
+    def get_patient_timestamp(self, session_token, index):
+        session = self.get_session(session_token)
+        added_times = session.get("added_times", [])
+    
+        # If timestamp exists, return it
+        if index < len(added_times):
+            return added_times[index]
+    
+        # Fallback if something is missing
+        return time.time()
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
         session["patients"].append(patient_name)
-        if not session["current_patient"]:
+    
+        # Store timestamp for backend timer calculations
+        if "added_times" not in session:
+            session["added_times"] = []
+        session["added_times"].append(time.time())
+    
+        # If no active patient, this patient becomes the current one
+        if not session.get("current_patient"):
             session["current_patient"] = patient_name
             session["start_time"] = time.time()
+
 
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
@@ -1672,7 +1690,35 @@ def update_chatbot_settings(payload: dict, db: Session = Depends(get_db)):
 
     return {"message": "Chatbot access settings updated successfully"}
 
+async def timer_loop(session_token, state, manager, public_manager):
+    while session_token in session_states:
+        session_data = state.get_session(session_token)
+        patients = session_data.get("patients", [])
+        avg = state.get_average_time(session_token)
 
+        timers = {}
+
+        # Compute remaining time for each patient
+        now = time.time()
+        for index, patient in enumerate(patients):
+            added = state.get_patient_timestamp(session_token, index)  # you will add this below
+            wait_offset = avg * index
+            elapsed = now - added
+            remaining = max(wait_offset - elapsed, 0)
+            timers[index] = int(remaining)
+
+        update_msg = {
+            "type": "update_timers",
+            "timers": timers
+        }
+
+        # Broadcast to doctor
+        await manager.broadcast_to_session(session_token, update_msg)
+
+        # Broadcast to public view
+        await public_manager.broadcast_to_session(session_token, update_msg)
+
+        await asyncio.sleep(1)
 
 @app.websocket("/ws/{session_token}")
 async def websocket_endpoint(websocket: WebSocket, session_token: str):
@@ -1692,6 +1738,9 @@ async def websocket_endpoint(websocket: WebSocket, session_token: str):
     session_data = state.get_session(session_token)  # Get the session data
     # Add WebSocket connection to the manager based on session token
     await manager.connect(websocket, session_token)
+    # Start the backend timer loop for this session
+    asyncio.create_task(timer_loop(session_token, state, manager, public_manager))
+
 
     try:
         # Send initial state to the new client
