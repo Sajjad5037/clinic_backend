@@ -240,125 +240,129 @@ class DashboardState:
 
     def get_session(self, session_token):
         if session_token not in self.sessions:
-            # Create a new session if the token is not found
             self.sessions[session_token] = {
                 "doctor_name": None,
                 "patients": [],
                 "current_patient": None,
                 "inspection_times": [],
                 "start_time": None,
-                "average_inspection_time": 300,
+                "average_inspection_time": 300,   # default = 5 min
                 "notices": [],
-                "added_times": []  # <-- NEW FIELD FOR TIMER SYSTEM
+                "added_times": []
             }
-
         return self.sessions[session_token]
+
     def get_patient_timestamp(self, session_token, index):
         session = self.get_session(session_token)
         added_times = session.get("added_times", [])
-    
-        # If timestamp exists, return it
         if index < len(added_times):
             return added_times[index]
-    
-        # Fallback if something is missing
         return time.time()
+
+    # -------------------------------
+    # ADD PATIENT
+    # -------------------------------
     def add_patient(self, session_token, patient_name: str):
         session = self.get_session(session_token)
-        
-        # Add patient to queue
+
         session["patients"].append(patient_name)
-    
-        # Track time patient was added (for waiting-time predictions)
         session["added_times"].append(time.time())
-    
-        # If this is the first patient in the queue, set them as current
+
+        # If queue was empty → we set current patient
         if not session.get("current_patient"):
             session["current_patient"] = patient_name
-            # Do NOT set start_time here — doctor has not started inspection yet
+            # IMPORTANT: do NOT set start_time here
+            # The doctor has not started inspecting yet.
+
+    # -------------------------------
+    # MARK PATIENT AS DONE
+    # -------------------------------
     def mark_as_done(self, session_token):
         session = self.get_session(session_token)
-    
-        # No current patient? Then nothing to do
+
         if not session["current_patient"]:
             return
-    
+
         now = time.time()
         start_time = session.get("start_time")
-    
-        # Calculate actual inspection time if available
+
+        # Calculate inspection duration ONLY if doctor actually started
         if start_time:
             inspection_duration = now - start_time
             session["inspection_times"].append(inspection_duration)
-    
-            # Keep last 10 inspections (avoid outliers)
+
+            # Keep last 10 inspections
             session["inspection_times"] = session["inspection_times"][-10:]
-    
-            # Recalculate average inspection time
-            session["average_inspection_time"] = (
-                sum(session["inspection_times"]) / len(session["inspection_times"])
-            )
-    
-        # Remove the current patient from queue
+
+            # Recalculate average
+            avg = sum(session["inspection_times"]) / len(session["inspection_times"])
+            session["average_inspection_time"] = max(avg, 60)  # Minimum 60 seconds
+
+        # Remove the completed patient
         if session["patients"]:
             session["patients"].pop(0)
-    
-        # Move to the next patient
+
+        # Move to next patient
         if session["patients"]:
             session["current_patient"] = session["patients"][0]
-            session["start_time"] = time.time()  # Doctor is now starting next inspection
+            session["start_time"] = time.time()  # doctor starts inspection
         else:
             session["current_patient"] = None
             session["start_time"] = None
 
+    # -------------------------------
+    # GET AVERAGE INSPECTION TIME
+    # -------------------------------
     def get_average_time(self, session_token):
         session = self.get_session(session_token)
-    
-        if not session["inspection_times"]:
-            return 300  # default = 5 minutes
-    
-        avg = sum(session["inspection_times"]) / len(session["inspection_times"])
-    
-        # Minimum realistic inspection time
-        avg = max(avg, 60)
-    
+
+        times = session["inspection_times"]
+        if not times:
+            return 300  # default = 5 min
+
+        avg = sum(times) / len(times)
+        avg = max(avg, 60)  # Minimum realistic consultation: 60 sec
         return int(avg)
 
-
+    # -------------------------------
+    # PUBLIC VIEW (FOR PATIENTS)
+    # -------------------------------
     def get_public_state(self, session_token):
         session = self.get_session(session_token)
         return {
             "patients": session["patients"],
             "currentPatient": session["current_patient"],
-            "averageInspectionTime": self.get_average_time(session_token)
+            "averageInspectionTime": self.get_average_time(session_token),
         }
 
+    # -------------------------------
+    # RESET ALL
+    # -------------------------------
     def reset_all(self, session_token):
         session = self.get_session(session_token)
-        if not session:
-            return
-
         session["patients"] = []
         session["current_patient"] = None
         session["inspection_times"] = []
         session["start_time"] = None
-        session["average_inspection_time"] = 60
+        session["average_inspection_time"] = 300
+        session["added_times"] = []
 
+    # -------------------------------
+    # NOTICES
+    # -------------------------------
     def add_notice(self, session_token, notice: str):
-        """Adds a notice to the session's notice board."""
         session = self.get_session(session_token)
         session["notices"].append(notice)
 
     def get_notices(self, session_token):
-        """Returns the list of notices for the session."""
         session = self.get_session(session_token)
         return session["notices"]
-    
+
     def remove_notice(self, session_token, index: int):
-        """Removes a notice from the session's notice board by index."""
         session = self.get_session(session_token)
         if 0 <= index < len(session["notices"]):
             del session["notices"][index]
+
 
 class OrderManagerState:
     def __init__(self):
