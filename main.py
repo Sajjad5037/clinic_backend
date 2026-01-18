@@ -683,6 +683,7 @@ origins = [
     "https://ai-social-campaign.vercel.app",
     "https://ibne-sina.vercel.app",
     "https://a-level-exam-preparation.vercel.app",
+    "https://chat-for-me-ai2-3w45.vercel.app",
     "https://anz-way.vercel.app",          # newly added frontend
     "https://krish-chat-bot.vercel.app",   # added URL
     "https://chat-for-me-ai.web.app",      # newly added Firebase hosting
