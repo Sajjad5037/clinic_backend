@@ -21,6 +21,10 @@ import uvicorn
 import openai
 import xmlrpc.client
 from passlib.context import CryptContext
+_pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from typing import List,Dict,Set,Optional
@@ -868,28 +872,26 @@ def embed_texts(texts):
     )
     return [np.array(e.embedding) for e in response.data]
 
+_pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
 
+def hash_password(password: str) -> str:
+    return _pwd_context.hash(password)
+    
 @app.post("/api/doctors/signup", status_code=status.HTTP_201_CREATED)
-def signup_doctor(
-    payload: DoctorSignupPayload,
-    db: Session = Depends(get_db)
-):
-    # 1. Enforce unique username
+def signup_doctor(payload: DoctorSignupPayload, db: Session = Depends(get_db)):
     if db.query(Doctor).filter(Doctor.username == payload.username).first():
-        raise HTTPException(
-            status_code=400,
-            detail="Username already exists"
-        )
+        raise HTTPException(status_code=400, detail="Username already exists")
 
-    # 2. Create doctor (id handled by DB)
     doctor = Doctor(
         username=payload.username,
-        password=hash_password(payload.password),
+        password=hash_password(payload.password),  # ✅ now works
         name=payload.name,
         specialization="general"
     )
 
-    # 3. Persist
     db.add(doctor)
     db.commit()
     db.refresh(doctor)
