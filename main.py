@@ -2,7 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import DateTime, Float
 from sqlalchemy.dialects.postgresql import ARRAY
-from fastapi import Form
+from fastapi import Form, status
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -630,7 +630,8 @@ class DoctorResponse(BaseModel):  # Used for API responses
     specialization: str
 
     class Config:
-        orm_mode = True  # Enables ORM compatibility
+        from_attributes = True
+
 """
 class Doctor(Base):
     __tablename__ = "doctors"
