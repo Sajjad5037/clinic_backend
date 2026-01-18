@@ -2978,10 +2978,11 @@ async def login(
         key="session_token",
         value=session_token,
         httponly=True,
-        secure=False,  # Change to True if using HTTPS
-        samesite="Lax",
+        secure=True,          # ✅ REQUIRED
+        samesite="none",      # ✅ REQUIRED (lowercase!)
         max_age=3600
     )
+
     print("DEBUG: Session cookie set successfully.")
 
     # Debug: log final response content
@@ -2995,10 +2996,15 @@ async def login(
     }
     print("DEBUG: Returning response content:", response_content)
 
-    return JSONResponse(
-        content=response_content,
-        status_code=200
-    )
+    return {
+        "message": "Login successful",
+        "id": doctor.id,
+        "name": doctor.name,
+        "specialization": doctor.specialization,
+        "session_token": str(session_token),
+        "public_token": str(public_token)
+    }
+
 
 """
 @app.post("/login")
