@@ -550,7 +550,11 @@ class Doctor(Base):
     railway_resource_usage = relationship("RailwayResourceUsageModel", back_populates="doctor", cascade="all, delete")
     sessions = relationship("SessionModel", back_populates="doctor", cascade="all, delete")
     
-
+class DoctorSignupPayload(BaseModel):
+    username: str
+    password: str
+    name: str
+    
 class SessionModel(Base):  # Handles authentication sessions
     __tablename__ = "sessions"
 
@@ -860,6 +864,38 @@ def embed_texts(texts):
         input=texts
     )
     return [np.array(e.embedding) for e in response.data]
+
+
+@app.post("/api/doctors/signup", status_code=status.HTTP_201_CREATED)
+def signup_doctor(
+    payload: DoctorSignupPayload,
+    db: Session = Depends(get_db)
+):
+    # 1. Enforce unique username
+    if db.query(Doctor).filter(Doctor.username == payload.username).first():
+        raise HTTPException(
+            status_code=400,
+            detail="Username already exists"
+        )
+
+    # 2. Create doctor (id handled by DB)
+    doctor = Doctor(
+        username=payload.username,
+        password=hash_password(payload.password),
+        name=payload.name,
+        specialization="general"
+    )
+
+    # 3. Persist
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+
+    return {
+        "id": doctor.id,
+        "username": doctor.username,
+        "name": doctor.name
+    }
 
 @app.get("/api/whatsapp-knowledge-base/list")
 def list_documents(user_id: int, db: Session = Depends(get_db)):
