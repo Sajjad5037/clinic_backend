@@ -888,7 +888,7 @@ def signup_doctor(payload: DoctorSignupPayload, db: Session = Depends(get_db)):
         username=payload.username,
         password=hash_password(payload.password),  # ✅ now works
         name=payload.name,
-        specialization="general"
+        specialization="bussiness_chatbot"
     )
 
     db.add(doctor)
