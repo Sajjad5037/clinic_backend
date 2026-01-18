@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from fastapi import Form, status
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
-from core.security import hash_password
 
 
 
