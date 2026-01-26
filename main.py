@@ -692,7 +692,7 @@ origins = [
     "https://krish-chat-bot.vercel.app",   # added URL
     "https://chat-for-me-ai.web.app",      # newly added Firebase hosting
     "https://chat-for-me-ai.vercel.app",   # newly added
-    "https://social-media-campaign-blond.vercel.app/",
+    "https://social-media-campaign-blond.vercel.app",
     "https://chat-for-me-ai-login.vercel.app"  # newly added login frontend
 ]
 
